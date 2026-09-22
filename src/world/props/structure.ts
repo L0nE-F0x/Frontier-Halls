@@ -4,7 +4,6 @@ import { floorGrid, tube } from "../../engine/shapes";
 import type { RGB } from "../../engine/types";
 import type { BuildCtx } from "../ctx";
 import { MAT } from "../materials";
-import { courtClock } from "./fixtures";
 import { bench } from "./furniture";
 import { floorTape, plant } from "./objects";
 import {
@@ -221,7 +220,13 @@ export function partitionY(ctx: BuildCtx, ox: number, y: number, doorX: number):
  * The court at the middle of the block: paving instead of tiles, open to the
  * sky, and the master clock every wall clock in the building is reading.
  */
-export function courtyard(ctx: BuildCtx, ox: number, oy: number, color: RGB): void {
+export function courtyard(
+  ctx: BuildCtx,
+  ox: number,
+  oy: number,
+  color: RGB,
+  open: { n: boolean; s: boolean; e: boolean; w: boolean } = { n: false, s: false, e: false, w: false },
+): void {
   const { p } = ctx;
   p.box(ox, oy, 0, RW, RD, FLOOR_Z - 0.02, scale(color, 0.72));
   const step = 1.6;
@@ -233,17 +238,21 @@ export function courtyard(ctx: BuildCtx, ox: number, oy: number, color: RGB): vo
     }
   }
   // A kerb, so the court reads as outside rather than as a hall with no walls.
-  for (const [x, y, w, d] of [
-    [ox, oy, RW, 0.34], [ox, oy + RD - 0.34, RW, 0.34],
-    [ox, oy, 0.34, RD], [ox + RW - 0.34, oy, 0.34, RD],
-  ] as [number, number, number, number][]) {
+  // An edge shared with another court slot is left open: those slots are one yard.
+  const kerbs: [number, number, number, number, boolean][] = [
+    [ox, oy, RW, 0.34, open.n],
+    [ox, oy + RD - 0.34, RW, 0.34, open.s],
+    [ox, oy, 0.34, RD, open.w],
+    [ox + RW - 0.34, oy, 0.34, RD, open.e],
+  ];
+  for (const [x, y, w, d, skip] of kerbs) {
+    if (skip) continue;
     p.box(x, y, FLOOR_Z - 0.02, w, d, 0.16, MAT.wallTrim, { top: MAT.metal });
   }
   ctx.nav?.openRect(ox + 0.5, oy + 0.5, RW - 1, RD - 1);
 
-  // The clock the whole building keeps time by, and enough planting and seating
-  // that the court reads as somewhere people actually stand.
-  courtClock(ctx, ox + RW * 0.5, oy + RD * 0.5);
+  // Planting and seating, so the court reads as somewhere people actually stand.
+  // The clock itself is placed once, at the middle of every court slot.
   for (const [px, py, size] of [
     [2.6, 2.4, 1.5], [RW - 2.6, 2.4, 1.35], [2.6, RD - 2.6, 1.4], [RW - 2.6, RD - 2.6, 1.55],
     [RW * 0.5, 1.9, 1.1], [RW * 0.5, RD - 1.9, 1.15],

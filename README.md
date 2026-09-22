@@ -1,9 +1,9 @@
 # Frontier Halls
 
-One building. Eight halls, one for each frontier lab, laid out around a court
-with a clock standing in the middle of it. Every wall clock in the building is
-reading that one, and the figures inside decide where to go from it and from
-their own habits.
+One building. Ten halls laid out around a court, with a clock standing in the
+middle of it and a sidewalk of trees and lamps around the outside. Every wall
+clock in the building is reading that one clock, and the figures inside decide
+where to go from it and from their own habits.
 
 It is drawn with a software rasteriser into a small offscreen buffer, reduced to
 a handful of inks, and blown back up with the pixels left square.
@@ -17,10 +17,11 @@ npm run build
 
 ## Reading the building
 
-The block is a grid, as square as the hall count allows: eight halls make a
-three by three, and the slot left over becomes the court at the centre rather
-than a gap at the edge. Halls fill the grid in the order they are listed in
-`src/world/building.ts`, starting at the far corner.
+The block is a grid, as square as the hall count allows: ten halls make a
+four by three, and the slots left over join into the court at the centre
+rather than a gap at the edge. Halls fill the grid in the order they are listed
+in `src/world/building.ts`, starting at the far corner. Ai2 and Kimi, the last
+two, are the first rooms of an open-source quarter and an Asian quarter.
 
 The square plan is not only architectural. In this projection a building's
 bounding box depends on width plus depth, so a long thin block and a square one
@@ -39,7 +40,7 @@ occlude. Turning the view with `Q` and `E` swaps which is which.
 
 | | |
 |---|---|
-| `1`–`8` | enter a hall |
+| `1`–`9`, `A` | enter a hall (`A` is Ai2) |
 | `0` | the whole block |
 | click | read a figure; click a floor for its hall |
 | drag, scroll | look and zoom |
@@ -94,6 +95,8 @@ test/          vitest, run headless
   grid re-squares itself around whatever the hall count is, so adding a hall
   means appending it and nothing else; navigation, the dock, the keyboard
   shortcuts, the finder and the minimap all read that array.
+- **`grounds.ts`** — the sidewalk, trees and street lamps outside the walls.
+  The overview camera frames this ring as well as the block.
 - **`nav.ts`** — an occupancy grid with A* over it. Props register their own
   footprint during a measuring pass that runs the whole build against a
   one-pixel raster, so what the figures can walk through never drifts from what
@@ -112,11 +115,13 @@ test/          vitest, run headless
 2. List its `stations` (where a figure can stand and what it faces),
    its `lamps`, its `people`, and a `dress` function built from `halls/kit.ts`
    and `props/`.
-3. Append it to `halls` in `src/world/building.ts`.
+3. Append it to `halls` in `src/world/building.ts`. Set `quarter` when the hall
+   belongs to one — open source, Asia, and whatever comes after.
 
-The plan takes care of itself: a ninth hall fills the court, a tenth grows the
-grid to four by three and opens two new courts. Halls are written in their own
-local coordinates and never need to know where they sit.
+The plan takes care of itself. Spare slots become the court, picked from the
+middle outward, and a full row grows the grid. Halls are written in their own
+local coordinates and never need to know where they sit. The sidewalk is drawn
+from the block's outer size, so it follows the growth without a second plan.
 
 `npm test` checks that the block stays square and that every hall gets exactly
 one slot, that every figure's `home` and `haunts` name stations that exist, that

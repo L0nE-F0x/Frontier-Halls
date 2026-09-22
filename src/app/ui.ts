@@ -4,6 +4,7 @@ import { RATE_STEPS, type WorldClock } from "../engine/clock";
 import { unproject } from "../engine/project";
 import type { Camera } from "../engine/types";
 import { BLOCK_D, BLOCK_W, GRID, halls, SLOTS } from "../world/building";
+import { GROUNDS_REACH } from "../world/grounds";
 import { RD, RW } from "../world/metrics";
 import type { Person } from "../world/person";
 import type { Settings } from "./settings";
@@ -30,7 +31,7 @@ export type UiHooks = {
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 
 const KEYS: [string, string][] = [
-  ["1 – 8", "Enter a hall"],
+  ["1 – 9, A", "Enter a hall"],
   ["0", "The whole block"],
   ["Click", "Read a figure"],
   ["Drag / scroll", "Look and zoom"],
@@ -119,6 +120,8 @@ export class Ui {
 
   private buildDock(): void {
     this.dock.replaceChildren();
+    const row = document.createElement("div");
+    row.className = "dock-halls";
     for (const hall of halls) {
       const button = document.createElement("button");
       button.type = "button";
@@ -128,13 +131,14 @@ export class Ui {
       swatch.style.background = hex(hall.accent);
       const key = document.createElement("span");
       key.className = "k";
-      key.textContent = hall.key;
+      key.textContent = hall.key.toUpperCase();
       const name = document.createElement("span");
       name.textContent = hall.name;
       button.append(swatch, key, name);
       button.addEventListener("click", () => this.hooks.goHall(hall.id));
-      this.dock.append(button);
+      row.append(button);
     }
+    this.dock.append(row);
     const all = document.createElement("button");
     all.type = "button";
     all.dataset.hall = "";
@@ -222,7 +226,10 @@ export class Ui {
     }
 
     if (hall) {
-      kicker.textContent = `Hall ${hall.key} · ${hall.tagline}`;
+      const keyLabel = hall.key.toUpperCase();
+      kicker.textContent = hall.quarter
+        ? `${hall.quarter} · Hall ${keyLabel} · ${hall.tagline}`
+        : `Hall ${keyLabel} · ${hall.tagline}`;
       title.textContent = hall.name;
       sub.textContent = `${hall.people.length} in the hall`;
       doing.textContent = hall.blurb;
@@ -239,10 +246,10 @@ export class Ui {
     title.textContent = `${halls.length} halls, one clock`;
     sub.textContent = "September 2026";
     doing.textContent =
-      "The halls are laid out around a court, and the clock standing in the middle of it is the one every wall clock in the building is reading.";
+      "The halls are laid out around a court, and the clock standing in the middle of it is the one every wall clock in the building is reading. A sidewalk runs around the outside.";
     why.textContent =
       "Click a figure to read who it is and why it moves the way it does. Click a floor to enter the hall. The figures are not on rails: they decide where to go from the clock and from their own habits.";
-    addFact(facts, "Plan", `${GRID.cols} × ${GRID.rows}, ${halls.length} halls and a court`);
+    addFact(facts, "Plan", `${GRID.cols} × ${GRID.rows}, ${halls.length} halls around a court`);
     addFact(facts, "Figures", String(this.people.length));
     const active = PALETTES.find((p) => p.id === this.settings.palette) ?? PALETTES[0];
     addFact(facts, "Inks", String(active.ramp.length + active.accents.length));
@@ -324,7 +331,7 @@ export class Ui {
       rows.push({
         kind: "Hall",
         label: hall.name,
-        meta: hall.tagline,
+        meta: hall.quarter ? `${hall.quarter} · ${hall.tagline}` : hall.tagline,
         run: () => this.hooks.goHall(hall.id),
       });
     }
@@ -540,14 +547,9 @@ export class Ui {
   private wireMinimap(): void {
     this.minimap.addEventListener("click", (event) => {
       const rect = this.minimap.getBoundingClientRect();
-      const w = this.minimap.width;
-      const h = this.minimap.height;
-      const pad = 6;
-      const s = Math.min((w - pad * 2) / BLOCK_W, (h - pad * 2) / BLOCK_D);
-      const offX = pad + ((w - pad * 2) - BLOCK_W * s) / 2;
-      const offY = pad + ((h - pad * 2) - BLOCK_D * s) / 2;
-      const wx = (((event.clientX - rect.left) / rect.width) * w - offX) / s;
-      const wy = (((event.clientY - rect.top) / rect.height) * h - offY) / s;
+      const layout = mapLayout(this.minimap.width, this.minimap.height);
+      const wx = (((event.clientX - rect.left) / rect.width) * this.minimap.width - layout.offX) / layout.s - GROUNDS_REACH;
+      const wy = (((event.clientY - rect.top) / rect.height) * this.minimap.height - layout.offY) / layout.s - GROUNDS_REACH;
       const slot = SLOTS.find(
         (item) => wx >= item.x && wx < item.x + RW && wy >= item.y && wy < item.y + RD,
       );
@@ -560,16 +562,17 @@ export class Ui {
     const ctx = this.mapCtx;
     const w = this.minimap.width;
     const h = this.minimap.height;
-    const pad = 6;
-    const s = Math.min((w - pad * 2) / BLOCK_W, (h - pad * 2) / BLOCK_D);
-    const offX = pad + ((w - pad * 2) - BLOCK_W * s) / 2;
-    const offY = pad + ((h - pad * 2) - BLOCK_D * s) / 2;
-    const px = (x: number) => offX + x * s;
-    const py = (y: number) => offY + y * s;
+    const { s, px, py } = mapLayout(w, h);
 
     ctx.clearRect(0, 0, w, h);
     ctx.fillStyle = hex(palette.roles.paper);
     ctx.fillRect(0, 0, w, h);
+
+    ctx.fillStyle = hex(mix(palette.roles.paper, palette.roles.ink, 0.07));
+    ctx.fillRect(
+      px(-GROUNDS_REACH), py(-GROUNDS_REACH),
+      (BLOCK_W + GROUNDS_REACH * 2) * s, (BLOCK_D + GROUNDS_REACH * 2) * s,
+    );
 
     for (const slot of SLOTS) {
       const active = slot.hall?.id === selectedHall;
@@ -595,10 +598,10 @@ export class Ui {
       ctx.strokeRect(px(slot.x) + 0.5, py(slot.y) + 0.5, RW * s - 1, RD * s - 1);
     }
 
-    // Camera footprint on the floor plane, clipped to the plan.
+    // Camera footprint on the floor plane, clipped to the plan including the sidewalk.
     ctx.save();
     ctx.beginPath();
-    ctx.rect(offX, offY, BLOCK_W * s, BLOCK_D * s);
+    ctx.rect(px(-GROUNDS_REACH), py(-GROUNDS_REACH), (BLOCK_W + GROUNDS_REACH * 2) * s, (BLOCK_D + GROUNDS_REACH * 2) * s);
     ctx.clip();
     const corners = [
       unproject(cam, 0, 0, 0),
@@ -628,6 +631,28 @@ export class Ui {
       ? `${hall.name} · ${hall.tagline}`
       : `The block · ${halls.length} halls`;
   }
+}
+
+function mapLayout(w: number, h: number): {
+  s: number;
+  offX: number;
+  offY: number;
+  px: (x: number) => number;
+  py: (y: number) => number;
+} {
+  const pad = 6;
+  const worldW = BLOCK_W + GROUNDS_REACH * 2;
+  const worldH = BLOCK_D + GROUNDS_REACH * 2;
+  const s = Math.min((w - pad * 2) / worldW, (h - pad * 2) / worldH);
+  const offX = pad + ((w - pad * 2) - worldW * s) / 2;
+  const offY = pad + ((h - pad * 2) - worldH * s) / 2;
+  return {
+    s,
+    offX,
+    offY,
+    px: (x) => offX + (x + GROUNDS_REACH) * s,
+    py: (y) => offY + (y + GROUNDS_REACH) * s,
+  };
 }
 
 function addFact(list: HTMLElement, label: string, value: string): void {

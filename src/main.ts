@@ -381,7 +381,8 @@ window.addEventListener("keydown", (event) => {
     else showOverview();
     return;
   }
-  const hall = halls.find((h) => h.key === event.key);
+  const pressed = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+  const hall = halls.find((h) => h.key === pressed);
   if (hall) return showHall(hall.id);
   switch (event.key) {
     case "0": showOverview(); break;

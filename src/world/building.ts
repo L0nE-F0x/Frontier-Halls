@@ -5,9 +5,11 @@ import { Raster } from "../engine/raster";
 import { screenX, screenY } from "../engine/project";
 import type { Camera, Lamp, Vec3 } from "../engine/types";
 import type { BuildCtx, Quality } from "./ctx";
+import { ai2 } from "./halls/ai2";
 import { anthropic } from "./halls/anthropic";
 import { deepmind } from "./halls/deepmind";
 import { deepseek } from "./halls/deepseek";
+import { kimi } from "./halls/kimi";
 import { meta } from "./halls/meta";
 import { mistral } from "./halls/mistral";
 import { openai } from "./halls/openai";
@@ -20,7 +22,8 @@ import {
   COLUMN_W, DOOR_GAP, FLOOR_Z, PART_T, RD, RW, TRUSS_Z, WALL_H, WALL_T,
 } from "./metrics";
 import { makeNav, NavGrid } from "./nav";
-import { pendant } from "./props/fixtures";
+import { buildGrounds, exteriorLamps, GROUNDS_REACH } from "./grounds";
+import { courtClock, pendant } from "./props/fixtures";
 import {
   clerestory, column, conduit, courtyard, endWall, hallFloor, longWall, openFrame,
   partitionX, partitionY, trench, wallPlan,
@@ -31,9 +34,12 @@ import {
  * its file and append it here. Everything else — the plan, navigation, the
  * dock, the keyboard shortcuts, the finder and the minimap — reads this array,
  * and the block re-squares itself around whatever length it is.
+ *
+ * Ai2 and Kimi are the first rooms of the open-source quarter and the Asian
+ * quarter. The original eight stay ungrouped until a later pass sorts them in.
  */
 export const halls: HallSpec[] = [
-  deepmind, anthropic, openai, xai, meta, mistral, deepseek, qwen,
+  deepmind, anthropic, openai, xai, meta, mistral, deepseek, qwen, ai2, kimi,
 ];
 
 /** Hall-local y at which every north-south partition is broken for a doorway. */
@@ -188,6 +194,7 @@ export function collectLamps(light: Lighting, lampMix: number): void {
       });
     }
   }
+  for (const lamp of exteriorLamps(BLOCK_W, BLOCK_D, lampMix)) light.addLamp(lamp);
 }
 
 /* -------------------------------------------------------------------- build */
@@ -195,6 +202,7 @@ export function collectLamps(light: Lighting, lampMix: number): void {
 export function buildBlock(ctx: BuildCtx): void {
   const plan = wallPlan(ctx.p.cam.yaw);
   const p = ctx.p;
+  buildGrounds(ctx, BLOCK_W, BLOCK_D);
 
   for (const slot of SLOTS) {
     if (!onScreen(ctx, slot)) continue;
@@ -218,7 +226,12 @@ export function buildBlock(ctx: BuildCtx): void {
     }
 
     if (!hall) {
-      courtyard(ctx, ox, oy, { r: 168, g: 166, b: 160 });
+      courtyard(ctx, ox, oy, { r: 168, g: 166, b: 160 }, {
+        n: slotAt(slot.col, slot.row - 1)?.kind === "court",
+        s: slotAt(slot.col, slot.row + 1)?.kind === "court",
+        w: slotAt(slot.col - 1, slot.row)?.kind === "court",
+        e: slotAt(slot.col + 1, slot.row)?.kind === "court",
+      });
     } else {
       hallFloor(ctx, ox, oy, hall.floor, hall.index * 17, 1000 + hall.index);
       trench(ctx, ox, oy);
@@ -244,6 +257,16 @@ export function buildBlock(ctx: BuildCtx): void {
       partitionY(ctx, ox, oy + RD - PART_T / 2, DOOR_X);
       doorPlaque(ctx, ox + DOOR_X + DOOR_GAP * 0.5, oy + RD, south!.hall!, "y");
     }
+  }
+
+  // One clock for the whole court, even when the court occupies more than one slot.
+  const courts = SLOTS.filter((slot) => slot.kind === "court");
+  if (courts.length && (ctx.nav || courts.some((slot) => onScreen(ctx, slot)))) {
+    const cx = courts.reduce((sum, slot) => sum + slot.x + RW / 2, 0) / courts.length;
+    const cy = courts.reduce((sum, slot) => sum + slot.y + RD / 2, 0) / courts.length;
+    p.wash = 0;
+    p.light.clearRegion();
+    courtClock(ctx, cx, cy);
   }
 
   // Structure stands on the grid, independent of what is in each slot.
@@ -324,10 +347,14 @@ function doorPlaque(ctx: BuildCtx, x: number, y: number, hall: HallSpec, axis: "
 
 export function blockPoints(): Vec3[] {
   const pts: Vec3[] = [];
+  const x0 = -GROUNDS_REACH;
+  const y0 = -GROUNDS_REACH;
+  const x1 = BLOCK_W + GROUNDS_REACH;
+  const y1 = BLOCK_D + GROUNDS_REACH;
   for (const z of [0, WALL_H * 0.72]) {
     pts.push(
-      { x: 0, y: 0, z }, { x: BLOCK_W, y: 0, z },
-      { x: BLOCK_W, y: BLOCK_D, z }, { x: 0, y: BLOCK_D, z },
+      { x: x0, y: y0, z }, { x: x1, y: y0, z },
+      { x: x1, y: y1, z }, { x: x0, y: y1, z },
     );
   }
   return pts;

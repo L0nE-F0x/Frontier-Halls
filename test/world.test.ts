@@ -4,6 +4,7 @@ import {
   allStations, BLOCK_D, BLOCK_W, DOOR_Y, GRID, halls, hallOrigin, hallPoints, layoutNav,
   SLOTS, slotOf, blockPoints,
 } from "../src/world/building";
+import { exteriorPosts, GROUNDS_REACH } from "../src/world/grounds";
 import { Crowd } from "../src/world/crowd";
 import { RD, RW } from "../src/world/metrics";
 import { PALETTES } from "../src/engine/palettes";
@@ -16,6 +17,8 @@ describe("halls", () => {
   it("are numbered in order with unique ids and keys", () => {
     expect(new Set(halls.map((h) => h.id)).size).toBe(halls.length);
     expect(new Set(halls.map((h) => h.key)).size).toBe(halls.length);
+    const people = halls.flatMap((hall) => hall.people.map((person) => person.id));
+    expect(new Set(people).size).toBe(people.length);
     halls.forEach((hall, at) => expect(hall.index).toBe(at));
   });
 
@@ -59,6 +62,12 @@ describe("halls", () => {
 
   it("frames the block and each hall from real geometry", () => {
     expect(blockPoints().length).toBe(8);
+    const xs = blockPoints().map((point) => point.x);
+    const ys = blockPoints().map((point) => point.y);
+    expect(Math.min(...xs)).toBeCloseTo(-GROUNDS_REACH);
+    expect(Math.max(...xs)).toBeCloseTo(BLOCK_W + GROUNDS_REACH);
+    expect(Math.min(...ys)).toBeCloseTo(-GROUNDS_REACH);
+    expect(Math.max(...ys)).toBeCloseTo(BLOCK_D + GROUNDS_REACH);
     expect(BLOCK_W).toBe(GRID.cols * RW);
     expect(BLOCK_D).toBe(GRID.rows * RD);
     for (const hall of halls) expect(hallPoints(hall).length).toBe(8);
@@ -93,6 +102,33 @@ describe("the block", () => {
     const worst = Math.max(...SLOTS.map((s) => Math.hypot(s.col - cx, s.row - cy)));
     for (const court of courts) {
       expect(Math.hypot(court.col - cx, court.row - cy)).toBeLessThan(worst);
+    }
+  });
+
+  it("keeps the unfinished frame on the south-east hall", () => {
+    const last = halls[halls.length - 1];
+    const slot = slotOf(last);
+    expect(slot.col).toBe(GRID.cols - 1);
+    expect(slot.row).toBe(GRID.rows - 1);
+  });
+
+  it("puts trees and lamps on the sidewalk, outside the walls", () => {
+    const posts = exteriorPosts(BLOCK_W, BLOCK_D);
+    expect(posts.some((post) => post.kind === "tree")).toBe(true);
+    expect(posts.some((post) => post.kind === "lamp")).toBe(true);
+    for (const post of posts) {
+      const outside = post.x < -0.2 || post.x > BLOCK_W + 0.2 || post.y < -0.2 || post.y > BLOCK_D + 0.2;
+      expect(outside, `${post.kind} at ${post.x},${post.y}`).toBe(true);
+      expect(post.x).toBeGreaterThan(-GROUNDS_REACH - 0.2);
+      expect(post.x).toBeLessThan(BLOCK_W + GROUNDS_REACH + 0.2);
+      expect(post.y).toBeGreaterThan(-GROUNDS_REACH - 0.2);
+      expect(post.y).toBeLessThan(BLOCK_D + GROUNDS_REACH + 0.2);
+    }
+    for (let i = 0; i < posts.length; i++) {
+      for (let j = i + 1; j < posts.length; j++) {
+        const apart = Math.hypot(posts[i].x - posts[j].x, posts[i].y - posts[j].y);
+        expect(apart, `${i} and ${j}`).toBeGreaterThan(2);
+      }
     }
   });
 

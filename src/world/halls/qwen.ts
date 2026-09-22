@@ -7,7 +7,7 @@ import { floorTape, motes, plant, sign } from "../props/objects";
 import { baseStations, computeWall, corners, serviceBay, sideRacks, workstation } from "./kit";
 import { FACE_E, FACE_N, station, type HallSpec } from "./types";
 
-/** The last hall built, and the one still unfinished. Its outer frame is where the block grows next. */
+/** The depot. It was the open end of the block; the unfinished frame has moved outward. */
 export const qwen: HallSpec = {
   id: "qwen",
   key: "8",
@@ -16,13 +16,13 @@ export const qwen: HallSpec = {
   tagline: "The depot",
   ethos: "Release the whole ladder, from the model that runs on a laptop to the one that does not.",
   blurb:
-    "The near corner of the block. A depot rather than a studio: sizes stacked by the door, and an open frame where the next hall will attach.",
+    "A depot rather than a studio. Sizes stacked by the door, on the row where the block used to end.",
   reading:
-    "Every crate in this bay is the same family at a different size. The frame on the outer wall is deliberately unfinished. The block has been squared off around a bigger plan twice already.",
+    "Every crate in this bay is the same family at a different size. This hall was the open end of the block. The unfinished frame has moved out to the new outer wall.",
   facts: [
     { label: "House style", value: "Ship every size" },
     { label: "In the hall", value: "The dense line, the MoE line, the coder" },
-    { label: "Outer frame", value: "Still open" },
+    { label: "Was the end", value: "The frame moved on" },
   ],
   accent: VIOLET,
   floor: { r: 178, g: 172, b: 178 },
@@ -35,7 +35,7 @@ export const qwen: HallSpec = {
     ...baseStations(),
     station("depot", "the size bay", "floor", 12.2, 7.6, FACE_E),
     station("small", "the small bench", "bench", 3.0, 8.4, FACE_N),
-    station("frame", "the open frame", "door", 15.2, 10.4, FACE_E),
+    station("frame", "the lane out", "door", 15.2, 10.4, FACE_E),
   ],
   people: [
     {
@@ -72,7 +72,7 @@ export const qwen: HallSpec = {
       name: "The small sizes",
       role: "Runs on a laptop",
       tier: "Small",
-      doing: "Goes out through the frame and comes back with something.",
+      doing: "Goes out along the lane and comes back with something.",
       why: "The bottom of the ladder, and the reason the ladder exists. These are the weights that end up on other people's machines.",
       chips: ["Runs local", "Half a gigabyte up", "Many variants"],
       accent: VIOLET,

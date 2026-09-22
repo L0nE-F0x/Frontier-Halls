@@ -308,12 +308,27 @@ button {
   left: var(--gap);
   bottom: 12px;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 4px 5px;
-  max-width: min(52rem, calc(100vw - 420px));
+  max-width: calc(100vw - 250px);
   z-index: 4;
 }
+
+/* Halls scroll; the whole-block button stays put as the row grows. */
+#dock .dock-halls {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 4px 5px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+#dock .dock-halls::-webkit-scrollbar { display: none; }
+
+#dock button[data-hall=""] { flex: none; }
 
 #dock button {
   display: flex;
@@ -380,7 +395,7 @@ button {
 #map-wrap {
   position: fixed;
   left: var(--gap);
-  bottom: 84px;
+  bottom: 96px;
   z-index: 4;
   pointer-events: auto;
 }

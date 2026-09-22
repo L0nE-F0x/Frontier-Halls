@@ -32,11 +32,16 @@ export type Fact = { label: string; value: string };
 
 export type HallSpec = {
   id: string;
-  /** Keyboard shortcut, "1".."8". */
+  /** Keyboard shortcut. Digits first, then a letter once those run out. */
   key: string;
   name: string;
   /** Short form for the plaque over the door. */
   plaque: string;
+  /**
+   * Which quarter this hall belongs to, once the block starts to grow into
+   * them. Absent on the original halls; they get grouped in a later pass.
+   */
+  quarter?: string;
   /** One line under the name in the dossier. */
   tagline: string;
   /** The lab's public ethos, as this room plays it. */
