@@ -1,0 +1,21 @@
+# Netlify picks this up automatically on the first deploy.
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  # Vite 6 needs Node 18 or newer; Netlify's default is older on some accounts.
+  NODE_VERSION = "20"
+
+# The app routes with the hash (#anthropic/sonnet), so no SPA fallback is
+# needed. Vite already fingerprints the files under /assets, so they can be
+# cached hard and the HTML cannot be.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"

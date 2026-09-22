@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <meta
+      name="description"
+      content="An isometric cutaway of eight frontier AI labs as one building, drawn in five inks and running on one clock."
+    />
+    <title>Frontier Halls</title>
+  </head>
+  <body>
+    <canvas id="view" aria-label="Isometric cutaway of the frontier halls"></canvas>
+
+    <header id="hud">
+      <p class="mark">Frontier&nbsp;Halls</p>
+      <p class="clockline">
+        <span id="clock" class="clock">09:10</span>
+        <span id="phase" class="phase">Morning run</span>
+      </p>
+      <p id="phase-note" class="asof">Deep work. Everyone is at a station.</p>
+      <label class="timeline" title="Drag to move the day">
+        <span class="sr">Time of day</span>
+        <input id="timeline" type="range" min="0" max="1439" step="1" value="550" />
+      </label>
+    </header>
+
+    <aside id="dossier" aria-live="polite">
+      <div class="card-head">
+        <p id="d-kicker" class="kicker"></p>
+        <h1 id="d-title"></h1>
+        <p id="d-sub" class="sub"></p>
+      </div>
+      <ul id="d-chips" class="chips"></ul>
+      <p id="d-doing" class="doing"></p>
+      <p id="d-why" class="why"></p>
+      <dl id="d-facts" class="facts"></dl>
+      <p id="d-ethos" class="ethos"></p>
+      <nav class="card-nav">
+        <button id="d-prev" type="button" title="Previous figure (,)">&larr;</button>
+        <span id="d-count" class="count"></span>
+        <button id="d-next" type="button" title="Next figure (.)">&rarr;</button>
+      </nav>
+    </aside>
+
+    <nav id="dock" aria-label="Halls"></nav>
+
+    <div id="tools" role="toolbar" aria-label="View controls">
+      <button type="button" data-act="rotate-ccw" title="Rotate left (Q)">&#8630;</button>
+      <button type="button" data-act="rotate-cw" title="Rotate right (E)">&#8631;</button>
+      <span class="tool-sep"></span>
+      <button type="button" data-act="zoom-out" title="Zoom out (−)">&minus;</button>
+      <button type="button" data-act="zoom-in" title="Zoom in (+)">&plus;</button>
+      <span class="tool-sep"></span>
+      <button type="button" data-act="pause" title="Pause the clock (Space)">Pause</button>
+      <button type="button" data-act="search" title="Search (Ctrl K)">Search</button>
+      <button type="button" data-act="settings" title="Settings (S)">Settings</button>
+      <button type="button" data-act="help" title="Keys (?)">?</button>
+    </div>
+
+    <div id="map-wrap">
+      <canvas id="minimap" width="440" height="120" aria-label="Plan of the wing"></canvas>
+      <p id="map-note" class="map-note"></p>
+    </div>
+
+    <div id="tooltip" role="status"></div>
+    <div id="toasts" aria-live="polite"></div>
+
+    <div id="finder" class="sheet" hidden>
+      <div class="sheet-body finder-body">
+        <input id="finder-input" type="text" placeholder="Find a model, a hall, or a command" autocomplete="off" spellcheck="false" />
+        <ul id="finder-list" class="finder-list"></ul>
+      </div>
+    </div>
+
+    <div id="settings-panel" class="sheet" hidden>
+      <div class="sheet-body">
+        <h2>Settings</h2>
+        <div class="setting">
+          <label for="set-palette">Ink</label>
+          <select id="set-palette"></select>
+          <p id="set-palette-note" class="setting-note"></p>
+        </div>
+        <div class="setting">
+          <label for="set-pixel">Pixel size</label>
+          <input id="set-pixel" type="range" min="1" max="5" step="0.5" />
+          <output id="set-pixel-out"></output>
+        </div>
+        <div class="setting">
+          <label for="set-dither">Dither</label>
+          <input id="set-dither" type="range" min="0" max="1" step="0.05" />
+          <output id="set-dither-out"></output>
+        </div>
+        <div class="setting">
+          <label for="set-grain">Grain</label>
+          <input id="set-grain" type="range" min="0" max="0.6" step="0.02" />
+          <output id="set-grain-out"></output>
+        </div>
+        <div class="setting">
+          <label for="set-bloom">Bloom</label>
+          <input id="set-bloom" type="range" min="0" max="1.4" step="0.05" />
+          <output id="set-bloom-out"></output>
+        </div>
+        <div class="setting">
+          <label for="set-vignette">Vignette</label>
+          <input id="set-vignette" type="range" min="0" max="0.8" step="0.04" />
+          <output id="set-vignette-out"></output>
+        </div>
+        <div class="setting">
+          <label for="set-rate">Clock speed</label>
+          <select id="set-rate"></select>
+        </div>
+        <div class="setting">
+          <label for="set-quality">Detail</label>
+          <select id="set-quality">
+            <option value="0">Plain</option>
+            <option value="1">Full</option>
+            <option value="2">Everything</option>
+          </select>
+        </div>
+        <div class="setting toggles">
+          <label><input id="set-motion" type="checkbox" /> Figures move</label>
+          <label><input id="set-labels" type="checkbox" /> Floating labels</label>
+          <label><input id="set-stats" type="checkbox" /> Frame stats</label>
+        </div>
+        <div class="setting row-buttons">
+          <button type="button" id="set-shot">Save a picture</button>
+          <button type="button" id="set-reset">Reset</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="help-panel" class="sheet" hidden>
+      <div class="sheet-body">
+        <h2>Keys</h2>
+        <dl class="keys" id="keys-list"></dl>
+        <p class="note">
+          One building, eight halls, one clock. Drag to look, scroll to zoom, click a figure to
+          read who it is. Everything in the room is drawn from five inks.
+        </p>
+      </div>
+    </div>
+
+    <p id="stats" class="stats" hidden></p>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

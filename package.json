@@ -1,0 +1,20 @@
+{
+  "name": "frontier-halls",
+  "private": true,
+  "version": "0.2.0",
+  "description": "An isometric cutaway of the frontier AI labs as one building, drawn in a handful of inks and running on one clock.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "tsc --noEmit && vitest run"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5",
+    "vitest": "^3.2.7"
+  }
+}
