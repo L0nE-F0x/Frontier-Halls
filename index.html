@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
     <title>Frontier Halls</title>
+    <style>
+      /* Covers the drawing before the stylesheet arrives, and stays opaque. */
+      #gate { position: fixed; inset: 0; z-index: 16; background: #d6d2cc; }
+    </style>
     <meta
       name="description"
       content="Ten halls around one court, drawn in a handful of inks and running on one clock."
@@ -209,7 +213,13 @@
     </div>
 
     <div id="gate" role="dialog" aria-labelledby="gate-title">
-      <div class="gate-card">
+      <div class="gate-page">
+        <svg class="gate-mark" viewBox="0 0 32 32" aria-hidden="true">
+          <polygon points="16,3.5 29,10 16,16.5 3,10" fill="var(--ink)" />
+          <polygon points="3,11.4 16,17.9 16,29 3,22.5" fill="var(--ink-soft)" />
+          <polygon points="16,17.9 29,11.4 29,22.5 16,29" fill="color-mix(in srgb, var(--ink) 28%, var(--paper))" />
+          <rect x="15.15" y="6.4" width="1.7" height="5.4" fill="var(--accent)" />
+        </svg>
         <p class="kicker">A cutaway</p>
         <h1 id="gate-title">Frontier Halls</h1>
         <p class="gate-lead">Ten halls around one court, drawn in a handful of inks and running on one clock.</p>
@@ -219,6 +229,7 @@
           <button type="button" id="gate-about">What is this?</button>
         </div>
       </div>
+      <p class="gate-foot">One building · September 2026</p>
     </div>
 
     <p id="stats" class="stats" hidden></p>

@@ -726,44 +726,65 @@ body.at-gate #hud,
 body.at-gate #dossier,
 body.at-gate #dock,
 body.at-gate #tools,
-body.at-gate #map-wrap { display: none; }
+body.at-gate #map-wrap,
+body.at-gate #stats,
+body.at-gate #toasts,
+body.at-gate #tooltip,
+body.at-gate #view { visibility: hidden; }
 
 /* ------------------------------------------------------------------- gate */
 
+/* A title page. Opaque on purpose: the building is the thing you enter, not the backdrop. */
 #gate {
   position: fixed;
   inset: 0;
   z-index: 16;
   display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  padding: 0 20px calc(28px + env(safe-area-inset-bottom));
-  pointer-events: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 36px 28px calc(28px + env(safe-area-inset-bottom));
+  /* !important so this beats the foolscap cover in the document head once the palette is known. */
+  background: var(--paper) !important;
+  color: var(--ink);
+  overflow: auto;
 }
 #gate[hidden] { display: none; }
 
-.gate-card {
-  pointer-events: auto;
-  width: min(460px, 100%);
-  padding: 20px 24px 18px;
-  background: var(--panel);
-  border-top: 2px solid var(--accent);
-  box-shadow: var(--shadow);
+#gate::before {
+  content: "";
+  position: absolute;
+  inset: 16px;
+  border: 1px solid var(--panel-line);
+  pointer-events: none;
+}
+
+.gate-page {
+  width: min(26rem, 100%);
+  margin: auto;
+  padding: 12px 0 8px;
+}
+
+.gate-mark {
+  display: block;
+  width: 92px;
+  height: 92px;
+  margin: 0 0 26px;
 }
 
 #gate-title {
-  margin: 4px 0 0;
-  font-size: 44px;
+  margin: 8px 0 0;
+  font-size: clamp(48px, 9vw, 72px);
   font-weight: 500;
-  line-height: 1;
-  letter-spacing: -0.02em;
+  line-height: 0.96;
+  letter-spacing: -0.03em;
 }
 
 .gate-lead {
-  margin: 12px 0 0;
-  max-width: 36em;
+  margin: 16px 0 0;
+  max-width: 22em;
   color: var(--ink-soft);
-  font-size: 17px;
+  font-size: 18px;
   line-height: 1.4;
   font-style: italic;
 }
@@ -771,12 +792,12 @@ body.at-gate #map-wrap { display: none; }
 .gate-enter {
   display: block;
   width: 100%;
-  margin-top: 18px;
-  padding: 12px 16px;
+  margin-top: 28px;
+  padding: 13px 16px;
   border: 1px solid var(--ink);
   background: var(--ink);
   color: var(--paper);
-  font-size: 16.5px;
+  font-size: 17px;
 }
 .gate-enter:hover { background: transparent; color: var(--ink); }
 
@@ -787,11 +808,22 @@ body.at-gate #map-wrap { display: none; }
 }
 .gate-row button {
   flex: 1;
-  padding: 9px 12px;
+  padding: 10px 12px;
   border: 1px solid var(--ink);
-  font-size: 14.5px;
+  font-size: 15px;
 }
 .gate-row button:hover { background: var(--ink); color: var(--paper); }
+
+.gate-foot {
+  position: relative;
+  z-index: 1;
+  margin: 28px 0 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
 
 .about-p {
   margin: 12px 0 0;
@@ -826,8 +858,12 @@ body.at-gate #map-wrap { display: none; }
   }
   body.fold-dossier #dossier { top: 12px; bottom: auto; }
   body.fold-tools #tools { left: auto; bottom: 56px; }
-  #gate-title { font-size: 36px; }
-  .gate-lead { font-size: 15.5px; }
+  #gate { padding: 24px 20px calc(20px + env(safe-area-inset-bottom)); }
+  #gate::before { inset: 10px; }
+  .gate-mark { width: 72px; height: 72px; margin-bottom: 18px; }
+  #gate-title { font-size: 46px; }
+  .gate-lead { font-size: 16px; }
+  .gate-foot { letter-spacing: 0.12em; }
   #hud { max-width: calc(100vw - 150px); }
   .timeline { width: 100%; }
 }
