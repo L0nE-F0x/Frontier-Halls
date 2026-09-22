@@ -21,7 +21,7 @@ export const qwen: HallSpec = {
     "Every crate in this bay is the same family at a different size. This hall was the open end of the block. The unfinished frame has moved out to the new outer wall.",
   facts: [
     { label: "House style", value: "Ship every size" },
-    { label: "In the hall", value: "The dense line, the MoE line, the coder" },
+    { label: "In the hall", value: "{roster}" },
     { label: "Was the end", value: "The frame moved on" },
   ],
   accent: VIOLET,
@@ -39,8 +39,8 @@ export const qwen: HallSpec = {
   ],
   people: [
     {
-      id: "flagship",
-      name: "The MoE flagship",
+      id: "max",
+      name: "Qwen3.8 Max",
       role: "The big one",
       tier: "Flagship",
       doing: "Keeps the bench and lets the smaller sizes do the walking.",
@@ -54,7 +54,7 @@ export const qwen: HallSpec = {
     },
     {
       id: "coder",
-      name: "The coder",
+      name: "Qwen3 Coder Next",
       role: "Repository work",
       tier: "Coding",
       doing: "Works the depot, checking one size against the next.",
@@ -69,7 +69,7 @@ export const qwen: HallSpec = {
     },
     {
       id: "small",
-      name: "The small sizes",
+      name: "Qwen3.8 27B",
       role: "Runs on a laptop",
       tier: "Small",
       doing: "Goes out along the lane and comes back with something.",

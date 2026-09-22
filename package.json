@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check": "tsc --noEmit && vitest run"
+    "check": "tsc --noEmit && vitest run",
+    "roster": "node scripts/roster.mjs"
   },
   "devDependencies": {
     "typescript": "^5.8.3",

@@ -7,8 +7,8 @@ import { Lighting, skyAt } from "./engine/light";
 import { Painter } from "./engine/painter";
 import { paletteById, type Palette } from "./engine/palettes";
 import { Raster } from "./engine/raster";
-import { unrotX, unrotY } from "./engine/project";
-import { worldText } from "./engine/text";
+import { depthOf, screenX, screenY, unrotX, unrotY } from "./engine/project";
+import { textCells, worldText } from "./engine/text";
 import { Rig } from "./app/camera";
 import { clearSettings, DEFAULTS, loadSettings, saveSettings, type Settings } from "./app/settings";
 import { Ui, type Selection } from "./app/ui";
@@ -78,6 +78,7 @@ const hooks = {
   layoutChanged: () => {
     rig.insets = insets();
     rig.refit(false);
+    ui.markDockScroll();
   },
 };
 
@@ -127,7 +128,14 @@ function insets() {
   const top = open.hud ? (overview ? 86 : 124) : 22;
   const right = wide && open.dossier ? 366 : 18;
   let bottom: number;
-  if (!wide) bottom = open.dossier ? 210 : open.dock ? 88 : 28;
+  // The readout is 34vh on a narrow screen plus the dock and the toolbar under
+  // it, which is a good deal more than the 210 this used to assume — the block
+  // was being framed behind the card.
+  if (!wide) {
+    bottom = open.dossier
+      ? Math.round(window.innerHeight * 0.34) + (open.dock ? 96 : 60)
+      : open.dock ? 96 : 34;
+  }
   else if (open.map) bottom = overview ? 112 : 146;
   else if (open.dock) bottom = overview ? 72 : 96;
   else bottom = 28;
@@ -163,6 +171,15 @@ function considerRelief(ms: number, dt: number): void {
   if (relief !== before) resize();
 }
 
+/**
+ * CSS pixels one world unit measures on screen, along a ground axis. The scale
+ * bar on the plan reads this, so it stays honest through zoom and resize.
+ */
+function cssPerUnit(): number {
+  const perBuffer = window.innerWidth / Math.max(1, raster.w);
+  return rig.cam.s * Math.sqrt(1.25) * perBuffer;
+}
+
 function resize(): void {
   const dpr = Math.min(2, window.devicePixelRatio || 1);
   const cssW = window.innerWidth;
@@ -179,6 +196,7 @@ function resize(): void {
   rig.setViewport(raster.w, raster.h);
   rig.insets = insets();
   rig.refit(true);
+  ui.markDockScroll();
   screen.imageSmoothingEnabled = false;
 }
 
@@ -189,7 +207,7 @@ function currentHallId(): string | null {
 }
 
 function selectedPerson(): Person | undefined {
-  return selection.kind === "person" ? crowd.byId.get(selection.personId) : undefined;
+  return selection.kind === "person" ? crowd.at(selection.hallId, selection.personId) : undefined;
 }
 
 function showOverview(immediate = false): void {
@@ -209,17 +227,17 @@ function showHall(id: string, immediate = false): void {
 }
 
 function showPerson(hallId: string, personId: string, immediate = false): void {
-  const person = crowd.byId.get(personId);
+  const person = crowd.at(hallId, personId);
   if (!person) return showHall(hallId, immediate);
   selection = { kind: "person", hallId: person.hallId, personId };
   rig.insets = insets();
-  rig.frame(personPoints(person.x, person.y), 0.86, immediate, 1.1);
+  rig.frame(personPoints(person.x, person.y), 0.92, immediate, 1.1);
   afterSelect();
 }
 
 function cyclePerson(delta: number): void {
   const hall = hallById(currentHallId());
-  const list = hall ? hall.people.map((p) => crowd.byId.get(p.id)!).filter(Boolean) : crowd.people;
+  const list = hall ? hall.people.map((p) => crowd.at(hall.id, p.id)!).filter(Boolean) : crowd.people;
   if (!list.length) return;
   const current = selectedPerson();
   const at = current ? list.findIndex((p) => p.id === current.id) : -1;
@@ -255,7 +273,7 @@ function writeHash(): void {
 function readHash(): void {
   const [hallId, personId] = location.hash.replace("#", "").split("/");
   if (hallId && hallById(hallId)) {
-    if (personId && crowd.byId.has(personId)) showPerson(hallId, personId, true);
+    if (personId && crowd.at(hallId, personId)) showPerson(hallId, personId, true);
     else showHall(hallId, true);
   } else {
     showOverview(true);
@@ -357,6 +375,12 @@ function updateHover(bx: number, by: number, clientX: number, clientY: number): 
   hoveredPerson = person;
   hoveredHall = id >= 1000 ? halls[id - 1000]?.id ?? null : person?.hallId ?? null;
   view.classList.toggle("pointing", Boolean(person) || id >= 1000);
+  // Hovering already raises a plate in the drawing, at the thing itself. The
+  // tooltip is the fallback for when the plates are switched off.
+  if (settings.labels) {
+    ui.hideTooltip();
+    return;
+  }
   if (person) {
     ui.showTooltip(person.name, person.role, clientX, clientY);
   } else if (id >= 1000) {
@@ -392,18 +416,23 @@ window.addEventListener("keydown", (event) => {
     ui.openFinder();
     return;
   }
+  // Escape is handled before the typing guard, not after it. A slider keeps
+  // focus once you let go of it, and with the guard first, dragging the
+  // timeline or ticking a setting left Escape — and every other key — dead
+  // until you thought to click somewhere else.
+  if (event.key === "Escape") {
+    if (typing && event.target instanceof HTMLElement) event.target.blur();
+    if (ui.closeSheets()) return;
+    if (ui.atGate) return;
+    if (selection.kind === "person") showHall(selection.hallId);
+    else showOverview();
+    return;
+  }
   if (typing) return;
   if (event.key === "/") {
     if (ui.atGate) return;
     event.preventDefault();
     ui.openFinder();
-    return;
-  }
-  if (event.key === "Escape") {
-    if (ui.closeSheets()) return;
-    if (ui.atGate) return;
-    if (selection.kind === "person") showHall(selection.hallId);
-    else showOverview();
     return;
   }
   if (ui.atGate) {
@@ -468,6 +497,23 @@ function jumpTime(): void {
 window.addEventListener("resize", resize);
 window.addEventListener("hashchange", readHash);
 
+/**
+ * Dragging the window to a display with a different scale factor changes
+ * devicePixelRatio without firing a resize, and the backbuffer is sized from
+ * it. matchMedia is the only event for this, and the query has to be rebuilt
+ * each time because it only ever fires once.
+ */
+function watchPixelRatio(): void {
+  const dpr = window.devicePixelRatio || 1;
+  const query = matchMedia(`(resolution: ${dpr}dppx)`);
+  const once = () => {
+    resize();
+    watchPixelRatio();
+  };
+  query.addEventListener("change", once, { once: true });
+}
+if (typeof matchMedia === "function") watchPixelRatio();
+
 /* ----------------------------------------------------------------- capture */
 
 function saveShot(): void {
@@ -477,7 +523,7 @@ function saveShot(): void {
     const link = document.createElement("a");
     const hall = hallById(currentHallId());
     link.href = url;
-    link.download = `frontier-halls-${hall?.id ?? "wing"}-${clock.hhmm().replace(":", "")}.png`;
+    link.download = `frontier-halls-${hall?.id ?? "block"}-${clock.hhmm().replace(":", "")}.png`;
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 4000);
     ui.toast("Picture saved");
@@ -493,11 +539,13 @@ function saveShot(): void {
  */
 const LABEL_BIAS = 400;
 /**
- * Text clears every plate, not just its own. The gap has to exceed the depth
- * spread of the whole wing, or a nearer figure's plate lands on top of a
- * further figure's name.
+ * Text clears its own plate and nothing else. A single huge bias shared by
+ * every label flattens them all into one depth band, and then a far figure's
+ * name punches through a near figure's plate; biasing both by the same amount
+ * and separating them by a hair keeps each label whole and correctly ordered
+ * against its neighbours.
  */
-const LABEL_TEXT_BIAS = 900;
+const LABEL_TEXT_BIAS = LABEL_BIAS + 0.6;
 /**
  * A world step along the screen-horizontal axis covers sqrt(2) times as many
  * pixels as the same step straight up. Without this the glyph cells come out
@@ -548,11 +596,14 @@ function advance(dt: number): void {
   time += dt;
   clock.tick(dt);
   rig.update(dt);
-  crowd.update(dt, clock, settings.motion);
+  // One clock runs the building, so holding it holds the figures too. They
+  // used to keep walking under a HUD that said "Held", which is the one place
+  // the whole conceit was visibly untrue.
+  crowd.update(dt, clock, settings.motion && clock.running && clock.rate > 0);
 
   if (selection.kind === "person" && !rig.goal) {
     const person = selectedPerson();
-    if (person) rig.frame(personPoints(person.x, person.y), 0.86, false, 1.1);
+    if (person) rig.frame(personPoints(person.x, person.y), 0.92, false, 1.1);
   }
 }
 
@@ -583,6 +634,7 @@ function render(dt: number): void {
   };
 
   const page = backdrop(ink, sky.daylight);
+  ui.applyPage(palette, page, dt);
   painter.washColor = page;
   raster.clear(page);
   painter.beginFrame();
@@ -614,7 +666,7 @@ function render(dt: number): void {
   perf.post = mark() - t;
 
   t = mark();
-  quantize(raster.col, raster.w, raster.h, ink, settings.dither, settings.grain, settings.vignette);
+  quantize(raster.col, raster.w, raster.h, ink, settings.dither, settings.grain, settings.vignette, page);
   perf.quant = mark() - t;
 
   t = mark();
@@ -630,7 +682,7 @@ function render(dt: number): void {
 
   t = mark();
   ui.renderClock(!clock.running);
-  ui.drawMinimap(rig.cam, palette, currentHallId(), hoveredPerson?.id ?? hoveredHall);
+  ui.drawMinimap(rig.cam, currentHallId(), hoveredPerson?.id ?? hoveredHall, cssPerUnit());
   perf.ui = mark() - t;
 
   frames++;
@@ -657,15 +709,27 @@ function loop(now: number): void {
 }
 
 /**
- * Name plates. The glyph size is chosen in screen pixels and converted back to
- * world units, so a label is either crisp or not drawn at all — never a smear.
+ * Name plates.
+ *
+ * The glyph cell is sized in world units, proportional to the thing being
+ * named, so a label stays the same size relative to its subject at every zoom.
+ * It is never allowed finer than one buffer pixel: below that whole rows of a
+ * letter fall between pixel centres and the text comes out in pieces, so
+ * worldText drops it instead.
+ *
+ * Pinning the cell to one buffer pixel regardless of zoom, which is what this
+ * used to do, gives a figure thirty pixels wide a name plate five hundred
+ * pixels long.
  */
 function drawLabels(selected: Person | undefined): void {
   const s = rig.cam.s;
   // A world step along the screen-horizontal axis covers sqrt(2) * s pixels,
-  // so this is what makes one glyph cell one buffer pixel.
+  // so this is what turns a count of buffer pixels into world units.
   const cell = (px: number) => px / (s * Math.SQRT2);
+  /** A glyph cell of `world` units, held to at least `minPx` buffer pixels. */
+  const fit = (world: number, minPx = 1) => Math.max(cell(minPx), world);
   const hall = hallById(currentHallId());
+  const plates: Plate[] = [];
 
   // Named while a hall is the subject. Once a single figure is framed the
   // others stop shouting, and hovering any of them still names it.
@@ -675,12 +739,24 @@ function drawLabels(selected: Person | undefined): void {
       if (person === selected || person === hoveredPerson) continue;
       // On a plate like the subject's, because a drawn name over a drawn floor
       // in the same two inks is not a name anyone can read.
-      labelPlate(person.name, person.x, person.y, FLOOR_Z + 1.98 * person.scale, cell(1));
+      plates.push({
+        text: shortName(person),
+        x: person.x, y: person.y,
+        z: FLOOR_Z + 1.98 * person.scale,
+        size: fit(0.045 * person.scale),
+        rank: 2,
+      });
     }
   }
   for (const person of [hoveredPerson, selected]) {
     if (!person) continue;
-    labelPlate(person.name, person.x, person.y, FLOOR_Z + 2.2 * person.scale, cell(s > 28 ? 2 : 1));
+    plates.push({
+      text: shortName(person),
+      x: person.x, y: person.y,
+      z: FLOOR_Z + 2.2 * person.scale,
+      size: fit(0.055 * person.scale),
+      rank: 0,
+    });
   }
   if (!hall) {
     // Named in the world once there is room for the name to be read. Below
@@ -689,15 +765,74 @@ function drawLabels(selected: Person | undefined): void {
       for (const item of halls) {
         if (item.id === hoveredHall) continue;
         const o = hallOrigin(item);
-        label(item.plaque, o.x + RW / 2, o.y + RD * 0.5, 8.6, cell(s > 13 ? 2 : 1), MAT.ink);
+        // Half the width of the room it names, so the plan reads as a plan.
+        label(item.plaque, o.x + RW / 2, o.y + RD * 0.5, 8.6, fit(planCell(item.plaque)), MAT.ink);
       }
     }
     const over = hallById(hoveredHall);
     if (over) {
       const o = hallOrigin(over);
-      labelPlate(over.name, o.x + RW / 2, o.y + RD * 0.5, 8.8, cell(2));
+      labelPlate(over.name, o.x + RW / 2, o.y + RD * 0.5, 8.8, fit(planCell(over.name)));
     }
   }
+  placeLabels(plates);
+}
+
+type Plate = {
+  text: string;
+  x: number;
+  y: number;
+  z: number;
+  size: number;
+  /** Lower goes down first and always survives: the subject is never dropped. */
+  rank: number;
+};
+
+/**
+ * Lays the plates out, dropping any that would land on one already placed.
+ *
+ * Opaque plates that overlap do not merge into a longer label — they cut each
+ * other into pieces, and three figures standing together used to turn into a
+ * black smear. A name that cannot be read is worth less than the drawing it is
+ * covering, so the loser is simply not drawn; hovering still names it.
+ */
+function placeLabels(plates: Plate[]): void {
+  const cam = rig.cam;
+  const taken: { x0: number; x1: number; y0: number; y1: number }[] = [];
+  const order = plates
+    .map((plate) => ({ plate, d: depthOf(cam, plate.x, plate.y, plate.z) }))
+    // Subject first, then front to back, so a near figure keeps its name.
+    .sort((a, b) => a.plate.rank - b.plate.rank || a.d - b.d);
+
+  for (const { plate } of order) {
+    const k = plate.size * cam.s * Math.SQRT2;
+    const halfW = (textCells(plate.text) + 3) * k * 0.5;
+    const halfH = 8.4 * plate.size * LABEL_UP * cam.s * 0.5;
+    const cx = screenX(cam, plate.x, plate.y);
+    const cy = screenY(cam, plate.x, plate.y, plate.z);
+    const box = { x0: cx - halfW, x1: cx + halfW, y0: cy - halfH, y1: cy + halfH };
+    if (box.x1 < 0 || box.x0 > cam.w || box.y1 < 0 || box.y0 > cam.h) continue;
+    // A little air, so two plates never sit flush against each other either.
+    const clash = taken.some(
+      (t) => box.x0 < t.x1 + 2 && box.x1 > t.x0 - 2 && box.y0 < t.y1 + 2 && box.y1 > t.y0 - 2,
+    );
+    if (clash) continue;
+    taken.push(box);
+    labelPlate(plate.text, plate.x, plate.y, plate.z, plate.size);
+  }
+}
+
+/** A glyph cell that makes a room label half the width of the room. */
+function planCell(text: string): number {
+  return (RW * 0.5) / Math.max(6, textCells(text));
+}
+
+/**
+ * The name as it goes on a plate. Inside a hall the room already says whose it
+ * is, so the vendor stays on the door and the plate carries the model.
+ */
+function shortName(person: Person): string {
+  return person.short ?? person.name;
 }
 
 let cardAt = 0;

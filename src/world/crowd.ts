@@ -10,8 +10,17 @@ import { makePerson, setGoal, stepPerson, type Person } from "./person";
  * figure should be, once every few seconds, from the clock and the figure's own
  * traits. Everything that looks like intent comes from here.
  */
+/** A figure's key across the whole building: a seat id is only unique in its hall. */
+export function seatKey(hallId: string, personId: string): string {
+  return `${hallId}/${personId}`;
+}
+
 export class Crowd {
   people: Person[] = [];
+  /**
+   * Keyed by hall and seat, not by seat alone. Seat ids are roles — "flagship",
+   * "coder", "fast" — and the same role exists in most of the halls.
+   */
   byId = new Map<string, Person>();
   byPickId = new Map<number, Person>();
   private nav: NavGrid;
@@ -29,7 +38,7 @@ export class Crowd {
         const y = origin.y + (home ? home.y : 6) + Math.cos(home?.face ?? 0) * spread;
         const person = makePerson(spec, hall.id, pick++, x, y, home?.face ?? Math.PI / 2);
         this.people.push(person);
-        this.byId.set(person.id, person);
+        this.byId.set(seatKey(hall.id, person.id), person);
         this.byPickId.set(person.pickId, person);
         this.claim(hall.id, spec.home, person.id);
       }
@@ -74,6 +83,11 @@ export class Crowd {
     if (!set) return true;
     if (set.has(personId)) return true;
     return set.size < (station.capacity ?? 1);
+  }
+
+  /** The figure in a hall's seat, if anyone is in it. */
+  at(hallId: string, personId: string): Person | undefined {
+    return this.byId.get(seatKey(hallId, personId));
   }
 
   hallOf(person: Person): HallSpec {

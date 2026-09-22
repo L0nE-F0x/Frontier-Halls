@@ -64,12 +64,35 @@ export function trench(ctx: BuildCtx, ox: number, oy: number): void {
   ctx.nav?.costRect(x, y, w, 0.42, 1.4);
 }
 
+/**
+ * How a tall outer wall is articulated: pilasters on the structural bay, a
+ * parapet, and a band of the room's own colour under it.
+ *
+ * Left plain, the envelope is one flat slab of MAT.wall with a datum line on
+ * it, and at overview zoom it reads as a grey ribbon wrapped around a very
+ * detailed interior. These are the cheapest marks that make it architecture:
+ * the pilasters give the ribbon a rhythm that matches the columns inside, and
+ * the parapet gives it a top edge that catches the sky.
+ */
+const BAYS = 4;
+const PARAPET = 0.34;
+
+/**
+ * The hall's colour as it goes on the outside: pulled well back toward the
+ * wall, because ten saturated stripes around the parapet is the loudest thing
+ * in an overview that is otherwise almost entirely grey.
+ */
+function fascia(accent: RGB): RGB {
+  return mix(accent, MAT.wallTop, 0.42);
+}
+
 /** Long outer wall running along x. Tall ones carry the clerestory. */
 export function longWall(
   ctx: BuildCtx,
   x: number, y: number, length: number,
   tall: boolean,
   facingNorth: boolean,
+  band?: RGB,
 ): void {
   const { p } = ctx;
   const h = tall ? WALL_H : KNEE_H;
@@ -80,18 +103,58 @@ export function longWall(
     ctx.nav?.blockRect(x, y - 0.1, length, WALL_T + 0.2);
     return;
   }
+  // The inner face is the one you see: a tall wall only ever stands behind the
+  // room it belongs to.
+  const face = facingNorth ? y + WALL_T - 0.02 : y - 0.16;
   // A drawn datum line, the height a plan would section at.
   p.box(x, facingNorth ? y + WALL_T - 0.02 : y - 0.06, 2.2, length, 0.08, 0.07, MAT.wallTrim);
+  if (ctx.quality > 0) {
+    for (let i = 1; i < BAYS; i++) {
+      const px = x + (length * i) / BAYS - 0.24;
+      p.box(px, face, 0, 0.48, 0.18, h - PARAPET - 0.1, MAT.wallTrim, { top: MAT.wallTop });
+    }
+  }
+  p.box(x, y - 0.09, h - PARAPET, length, WALL_T + 0.18, PARAPET, MAT.wallTop, { top: MAT.metal });
+  if (band) {
+    p.box(x, facingNorth ? y + WALL_T - 0.03 : y - 0.11, h - PARAPET - 0.16, length, 0.1, 0.12, fascia(band), {
+      emissive: 0.3,
+    });
+  }
   ctx.nav?.blockRect(x, y - 0.1, length, WALL_T + 0.2);
 }
 
 /** End wall running along y. */
-export function endWall(ctx: BuildCtx, x: number, y: number, depth: number, tall: boolean): void {
+export function endWall(
+  ctx: BuildCtx,
+  x: number, y: number, depth: number,
+  tall: boolean,
+  band?: RGB,
+): void {
   const { p } = ctx;
   const h = tall ? WALL_H : KNEE_H;
   p.box(x, y, 0, WALL_T, depth, h, MAT.wall, { top: MAT.wallTop });
   p.box(x - 0.04, y, 0, WALL_T + 0.08, depth, 0.28, MAT.baseboard);
-  if (!tall) p.box(x - 0.05, y, KNEE_H, WALL_T + 0.1, depth, 0.09, MAT.wallTrim);
+  if (!tall) {
+    p.box(x - 0.05, y, KNEE_H, WALL_T + 0.1, depth, 0.09, MAT.wallTrim);
+    ctx.nav?.blockRect(x - 0.1, y, WALL_T + 0.2, depth);
+    return;
+  }
+  // An end wall at x = 0 is seen from +x; the far one at the other end is seen
+  // from -x. Either way the face that shows is the one toward the block.
+  const west = x < WALL_T;
+  const face = west ? x + WALL_T - 0.02 : x - 0.16;
+  if (ctx.quality > 0) {
+    for (let i = 1; i < BAYS; i++) {
+      const py = y + (depth * i) / BAYS - 0.24;
+      p.box(face, py, 0, 0.18, 0.48, h - PARAPET - 0.1, MAT.wallTrim, { top: MAT.wallTop });
+    }
+  }
+  p.box(x - 0.09, y, h - PARAPET, WALL_T + 0.18, depth, PARAPET, MAT.wallTop, { top: MAT.metal });
+  if (band) {
+    p.box(west ? x + WALL_T - 0.03 : x - 0.11, y, h - PARAPET - 0.16, 0.1, depth, 0.12, fascia(band), {
+      emissive: 0.3,
+    });
+  }
   ctx.nav?.blockRect(x - 0.1, y, WALL_T + 0.2, depth);
 }
 
@@ -306,7 +369,7 @@ export function conduit(ctx: BuildCtx, ox: number, oy: number): void {
   }
 }
 
-/** The open frame at the end of the wing, where the next wing attaches. */
+/** The open frame at the end of the block, where the next quarter attaches. */
 export function openFrame(ctx: BuildCtx, x: number, oy: number): void {
   const { p } = ctx;
   const gy = oy + RD * 0.5 - DOOR_GAP / 2;

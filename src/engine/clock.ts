@@ -29,8 +29,12 @@ export const RATE_STEPS = [0, 0.5, 1, 4, 15, 60, 240];
 export class WorldClock {
   /** Minutes since midnight, fractional. */
   minutes = 9 * 60 + 10;
-  /** Simulated minutes per real second. */
-  rate = 15;
+  /**
+   * Simulated minutes per real second. Four puts a day at six minutes, which
+   * is slow enough for a phase to land; fifteen ran the sky from dawn to night
+   * in the time it takes to read the card.
+   */
+  rate = 4;
   running = true;
   day = 0;
 

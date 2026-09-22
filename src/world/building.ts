@@ -18,6 +18,7 @@ import { xai } from "./halls/xai";
 import { hallSignage } from "./halls/kit";
 import type { HallSpec, Station } from "./halls/types";
 import { MAT } from "./materials";
+import { seatOf } from "./roster";
 import {
   COLUMN_W, DOOR_GAP, FLOOR_Z, PART_T, RD, RW, TRUSS_Z, WALL_H, WALL_T,
 } from "./metrics";
@@ -40,7 +41,40 @@ import {
  */
 export const halls: HallSpec[] = [
   deepmind, anthropic, openai, xai, meta, mistral, deepseek, qwen, ai2, kimi,
-];
+].map(stage);
+
+/**
+ * Puts the current roster into the hall's seats.
+ *
+ * Copy written about a seat may name the model with {name} or {short}, and a
+ * hall's list of who is in it with {roster}, so a lineup moving on stays a
+ * one-file edit instead of a hunt through prose. A seat with nobody in the
+ * roster keeps whatever the hall file wrote, which is what makes adding a hall
+ * still work before the roster knows about it.
+ */
+function stage(hall: HallSpec): HallSpec {
+  for (const person of hall.people) {
+    const seat = seatOf(hall.id, person.id);
+    if (!seat) continue;
+    person.name = seat.name;
+    person.short = seat.short;
+  }
+  const names = hall.people.map((p) => p.short ?? p.name).join(", ");
+  const fill = (text: string, person?: HallSpec["people"][number]) =>
+    text
+      .replace(/\{name\}/g, person?.name ?? hall.name)
+      .replace(/\{short\}/g, person?.short ?? person?.name ?? hall.name)
+      .replace(/\{roster\}/g, names);
+  for (const person of hall.people) {
+    person.role = fill(person.role, person);
+    person.doing = fill(person.doing, person);
+    person.why = fill(person.why, person);
+  }
+  hall.facts = hall.facts.map((fact) => ({ ...fact, value: fill(fact.value) }));
+  hall.reading = fill(hall.reading);
+  hall.blurb = fill(hall.blurb);
+  return hall;
+}
 
 /** Hall-local y at which every north-south partition is broken for a doorway. */
 export const DOOR_Y = 8.6;
@@ -60,10 +94,10 @@ export type Slot = {
 };
 
 /**
- * The block is a grid, as square as the hall count allows. Eight halls make a
- * three by three with one slot over, and that slot becomes the court at the
- * centre rather than a gap at the edge — which is why the spare slots are
- * picked from the middle outwards.
+ * The block is a grid, as square as the hall count allows. Ten halls make a
+ * four by three with two slots over, and those become the court at the centre
+ * rather than a gap at the edge — which is why the spare slots are picked from
+ * the middle outwards.
  */
 function gridFor(count: number): { cols: number; rows: number } {
   const cols = Math.max(1, Math.ceil(Math.sqrt(count)));
@@ -204,25 +238,33 @@ export function buildBlock(ctx: BuildCtx): void {
   const p = ctx.p;
   buildGrounds(ctx, BLOCK_W, BLOCK_D);
 
+  // Restored at the end: a hall that is not the subject is drawn a step
+  // plainer as well as washed back, which is most of what makes the subject
+  // read as the subject.
+  const baseQuality = ctx.quality;
+
   for (const slot of SLOTS) {
     if (!onScreen(ctx, slot)) continue;
     const { x: ox, y: oy, hall } = slot;
+    const subject = !ctx.focus || ctx.focus === (hall?.id ?? "");
+    ctx.quality = subject ? baseQuality : (Math.max(0, baseQuality - 1) as Quality);
     p.wash = washFor(ctx, hall?.id ?? "");
     p.light.setRegion(ox - 3, ox + RW + 3);
 
     // Whichever of this slot's edges lie on the outside of the block.
+    const band = hall?.accent;
     if (slot.row === 0) {
-      longWall(ctx, ox, 0, RW, plan.northTall, true);
+      longWall(ctx, ox, 0, RW, plan.northTall, true, band);
       if (plan.northTall) clerestory(ctx, ox, 0, RW, true);
     }
     if (slot.row === GRID.rows - 1) {
-      longWall(ctx, ox, BLOCK_D - WALL_T, RW, plan.southTall, false);
+      longWall(ctx, ox, BLOCK_D - WALL_T, RW, plan.southTall, false, band);
       if (plan.southTall) clerestory(ctx, ox, BLOCK_D - WALL_T, RW, false);
     }
-    if (slot.col === 0) endWall(ctx, 0, oy, RD, plan.westTall);
+    if (slot.col === 0) endWall(ctx, 0, oy, RD, plan.westTall, band);
     if (slot.col === GRID.cols - 1) {
       if (hall && hall.index === halls.length - 1) openFrame(ctx, BLOCK_W - WALL_T, oy);
-      else endWall(ctx, BLOCK_W - WALL_T, oy, RD, plan.eastTall);
+      else endWall(ctx, BLOCK_W - WALL_T, oy, RD, plan.eastTall, band);
     }
 
     if (!hall) {
@@ -237,6 +279,7 @@ export function buildBlock(ctx: BuildCtx): void {
       trench(ctx, ox, oy);
       if (slot.row === 0) conduit(ctx, ox, oy);
       if (ctx.quality > 0) trussesFor(ctx, ox, oy);
+      if (ctx.focus === hall.id) focusOutline(ctx, ox, oy, hall);
       hallSignage(ctx, ox, oy, hall.plaque, ctx.p.cam.yaw);
       hallBand(ctx, ox, oy, hall);
       hall.dress(ctx, ox, oy);
@@ -258,6 +301,8 @@ export function buildBlock(ctx: BuildCtx): void {
       doorPlaque(ctx, ox + DOOR_X + DOOR_GAP * 0.5, oy + RD, south!.hall!, "y");
     }
   }
+
+  ctx.quality = baseQuality;
 
   // One clock for the whole court, even when the court occupies more than one slot.
   const courts = SLOTS.filter((slot) => slot.kind === "court");
@@ -281,14 +326,20 @@ export function buildBlock(ctx: BuildCtx): void {
   p.light.clearRegion();
 }
 
-/** How far back a hall is pushed when it is not the one being read. */
+/**
+ * How far back a hall is pushed when it is not the one being read.
+ *
+ * Hard enough to actually answer "which room am I in". At the old strength a
+ * neighbour came back about as loud as the subject, and entering a hall only
+ * moved the camera; the room you asked for has to be the thing on the page.
+ */
 export function washFor(ctx: BuildCtx, hallId: string): number {
   if (!ctx.focus || ctx.focus === hallId) return 0;
   const a = SLOTS.find((s) => s.hall?.id === ctx.focus);
   const b = SLOTS.find((s) => s.hall?.id === hallId) ?? SLOTS.find((s) => !s.hall);
-  if (!a || !b) return 0.34;
+  if (!a || !b) return 0.52;
   const away = Math.hypot(a.col - b.col, a.row - b.row);
-  return Math.min(0.52, 0.2 + away * 0.09);
+  return Math.min(0.72, 0.34 + away * 0.13);
 }
 
 /**
@@ -326,6 +377,26 @@ function trussesFor(ctx: BuildCtx, ox: number, oy: number): void {
       }
     }
   }
+}
+
+/**
+ * A drawn edge around the room being read. A plan says which room it is about
+ * by ruling it, not by moving the page.
+ */
+function focusOutline(ctx: BuildCtx, ox: number, oy: number, hall: HallSpec): void {
+  const { p } = ctx;
+  const z = FLOOR_Z + 0.01;
+  const inset = 0.34;
+  const tone = mix(hall.accent, MAT.ink, 0.2);
+  const x0 = ox + inset;
+  const y0 = oy + inset;
+  const x1 = ox + RW - inset;
+  const y1 = oy + RD - inset;
+  const opts = { emissive: 1, bias: 0.08 };
+  p.line(x0, y0, z, x1, y0, z, tone, 1.4, opts);
+  p.line(x1, y0, z, x1, y1, z, tone, 1.4, opts);
+  p.line(x1, y1, z, x0, y1, z, tone, 1.4, opts);
+  p.line(x0, y1, z, x0, y0, z, tone, 1.4, opts);
 }
 
 /** The hall's colour, laid into the floor along its open edge. */
@@ -374,14 +445,29 @@ export function hallPoints(hall: HallSpec): Vec3[] {
   return pts;
 }
 
+/**
+ * The box a single figure is framed inside.
+ *
+ * All eight corners, not the four the other framings use: with z on only two
+ * of them the vertical span depends on which corners happen to carry it, which
+ * is how a 2.25-unit box came out twice as tight as the arithmetic said and
+ * filled the frame with one torso.
+ *
+ * Sized so the figure lands at about a third of the frame — a portrait with
+ * the room still around it. The old 6.8-unit box put it at a fortieth, beside
+ * a column three times its size.
+ */
 export function personPoints(x: number, y: number): Vec3[] {
-  const r = 3.4;
-  return [
-    { x: x - r, y: y - r, z: 0 },
-    { x: x + r, y: y - r, z: 0 },
-    { x: x + r, y: y + r, z: 3.2 },
-    { x: x - r, y: y + r, z: 3.2 },
-  ];
+  const r = 1.16;
+  const top = FLOOR_Z + 2.3;
+  const pts: Vec3[] = [];
+  for (const z of [FLOOR_Z, top]) {
+    pts.push(
+      { x: x - r, y: y - r, z }, { x: x + r, y: y - r, z },
+      { x: x + r, y: y + r, z }, { x: x - r, y: y + r, z },
+    );
+  }
+  return pts;
 }
 
 /* -------------------------------------------------------------- navigation */

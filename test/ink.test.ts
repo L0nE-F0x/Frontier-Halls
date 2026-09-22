@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { backdrop, buildInkTable, quantize } from "../src/engine/ink";
 import { PALETTES } from "../src/engine/palettes";
-import { luma } from "../src/engine/color";
+import { hex, luma } from "../src/engine/color";
 
 function frame(w: number, h: number, fill: (x: number, y: number) => [number, number, number]) {
   const data = new Uint8ClampedArray(w * h * 4);
@@ -95,13 +95,42 @@ describe("quantize", () => {
     }
   });
 
-  it("darkens the corners when a vignette is applied", () => {
+  it("pulls the corners toward the page when a vignette is applied", () => {
+    const page = PALETTES[0].ramp[0];
     const data = frame(64, 64, () => [150, 150, 150]);
-    quantize(data, 64, 64, table, 0, 0, 0.6);
+    quantize(data, 64, 64, table, 0, 0, 0.6, page);
     const corner = luma({ r: data[0], g: data[1], b: data[2] });
     const middle = (32 * 64 + 32) * 4;
     const centre = luma({ r: data[middle], g: data[middle + 1], b: data[middle + 2] });
+    // The page here is the darkest ink, so fading toward it darkens.
     expect(corner).toBeLessThan(centre);
+  });
+
+  /*
+   * The one the old pair of tests walked straight past: each proved half of
+   * this and neither used the other's parameter, so a vignette over the page
+   * colour dithered the whole empty margin of the frame into noise.
+   */
+  it("leaves the page alone under a vignette, however strong", () => {
+    for (const page of table.inks) {
+      for (const vignette of [0.2, 0.5, 0.8]) {
+        const data = frame(48, 48, () => [page.r, page.g, page.b]);
+        quantize(data, 48, 48, table, 0.7, 0.25, vignette, page);
+        const used = new Set<string>();
+        for (let i = 0; i < data.length; i += 4) used.add(`${data[i]},${data[i + 1]},${data[i + 2]}`);
+        expect([...used], `${hex(page)} at ${vignette}`).toEqual([`${page.r},${page.g},${page.b}`]);
+      }
+    }
+  });
+
+  it("still fades anything that is not the page", () => {
+    const page = PALETTES[0].ramp[PALETTES[0].ramp.length - 1];
+    const data = frame(64, 64, () => [20, 20, 24]);
+    quantize(data, 64, 64, table, 0, 0, 0.8, page);
+    const corner = luma({ r: data[0], g: data[1], b: data[2] });
+    const middle = (32 * 64 + 32) * 4;
+    const centre = luma({ r: data[middle], g: data[middle + 1], b: data[middle + 2] });
+    expect(corner).toBeGreaterThan(centre);
   });
 });
 
@@ -113,5 +142,43 @@ describe("backdrop", () => {
     expect(table.palette.ramp).toContainEqual(day);
     expect(table.palette.ramp).toContainEqual(night);
     expect(luma(night)).toBeLessThan(luma(day));
+  });
+});
+
+describe("the page a palette sits on", () => {
+  it("is an exact ink at every hour, for every palette", () => {
+    for (const palette of PALETTES) {
+      const table = buildInkTable(palette);
+      for (const daylight of [0, 0.07, 0.2, 0.4, 0.7, 1]) {
+        expect(palette.ramp, `${palette.id} at ${daylight}`).toContainEqual(backdrop(table, daylight));
+      }
+    }
+  });
+
+  it("never gets lighter as the day ends", () => {
+    for (const palette of PALETTES) {
+      const table = buildInkTable(palette);
+      const hours = [1, 0.4, 0.2, 0].map((d) => luma(backdrop(table, d)));
+      for (let i = 1; i < hours.length; i++) {
+        expect(hours[i], `${palette.id}`).toBeLessThanOrEqual(hours[i - 1]);
+      }
+    }
+  });
+
+  /*
+   * A palette whose whole idea is a dark sheet used to render on a light page:
+   * the page was pinned to the lightest step of the ramp for everyone, so
+   * "Night shift" and "Phosphor" were light by day and the dark-page branch in
+   * the interface was unreachable.
+   */
+  it("is dark at noon for the palettes that are meant to be dark", () => {
+    for (const id of ["blueprint", "nightshift", "phosphor"]) {
+      const palette = PALETTES.find((p) => p.id === id)!;
+      expect(luma(backdrop(buildInkTable(palette), 1)), id).toBeLessThan(110);
+    }
+    for (const id of ["foolscap", "risograph", "foundry"]) {
+      const palette = PALETTES.find((p) => p.id === id)!;
+      expect(luma(backdrop(buildInkTable(palette), 1)), id).toBeGreaterThan(150);
+    }
   });
 });

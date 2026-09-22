@@ -75,8 +75,8 @@ export class Lighting {
   }
 
   /**
-   * Narrows the lamp list to the slice of the wing about to be drawn. Shading
-   * is per vertex and the wing is long, so this is the difference between
+   * Narrows the lamp list to the slice of the block about to be drawn. Shading
+   * is per vertex and the block is wide, so this is the difference between
    * testing two lamps and testing all of them, tens of thousands of times.
    */
   setRegion(xFrom: number, xTo: number): void {

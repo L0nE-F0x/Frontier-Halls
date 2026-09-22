@@ -24,6 +24,12 @@ export type Traits = {
 export type PersonSpec = {
   id: string;
   name: string;
+  /**
+   * The name as it goes on a plate in the world. Inside a hall the room
+   * already says whose it is, so the vendor stays on the door. Falls back to
+   * the full name.
+   */
+  short?: string;
   /** Short role line, shown under the name. */
   role: string;
   /** One of the hall's tiers, used for grouping in the dossier. */

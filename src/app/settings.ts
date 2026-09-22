@@ -23,7 +23,7 @@ export const DEFAULTS: Settings = {
   grain: 0.22,
   bloom: 0.6,
   vignette: 0.3,
-  rate: 15,
+  rate: 4,
   quality: 1,
   motion: true,
   labels: true,

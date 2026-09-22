@@ -1,8 +1,8 @@
-import { hex, mix, scale } from "../engine/color";
+import { hex, luma, mix, scale } from "../engine/color";
 import { PALETTES, type Palette } from "../engine/palettes";
 import { RATE_STEPS, type WorldClock } from "../engine/clock";
-import { unproject } from "../engine/project";
-import type { Camera } from "../engine/types";
+import { unproject, unrotX, unrotY } from "../engine/project";
+import type { Camera, RGB } from "../engine/types";
 import { BLOCK_D, BLOCK_W, GRID, halls, SLOTS } from "../world/building";
 import { GROUNDS_REACH } from "../world/grounds";
 import { RD, RW } from "../world/metrics";
@@ -40,7 +40,7 @@ const KEYS: [string, string][] = [
   [", / .", "Previous, next figure"],
   ["Space", "Hold the clock"],
   ["[ / ]", "Slow down, speed up"],
-  ["T", "Jump to noon, then midnight"],
+  ["T", "Jump to midday, night, first light"],
   ["Ctrl K, /", "Find anything"],
   ["S", "Settings"],
   ["F", "Save a picture"],
@@ -81,6 +81,14 @@ export class Ui {
   private timeline = $<HTMLInputElement>("timeline");
   private stats = $("stats");
 
+  /** The page the chrome is currently inked to, and its opposite. */
+  private inked = "";
+  private dirty = true;
+  private page: RGB = { r: 214, g: 210, b: 204 };
+  private ink: RGB = { r: 32, g: 30, b: 36 };
+
+  private dockRow: HTMLElement | null = null;
+  private spoken = "";
   private rows: FinderRow[] = [];
   private filtered: FinderRow[] = [];
   private cursor = 0;
@@ -142,22 +150,130 @@ export class Ui {
 
   applyPalette(palette: Palette): void {
     const root = document.documentElement.style;
-    const paper = palette.roles.paper;
-    const ink = palette.roles.ink;
-    const dark = isDark(palette);
-    root.setProperty("--paper", hex(paper));
-    root.setProperty("--paper-2", hex(mix(paper, ink, 0.08)));
-    root.setProperty("--ink", hex(ink));
-    root.setProperty("--ink-soft", hex(mix(ink, paper, dark ? 0.42 : 0.38)));
     root.setProperty("--accent", hex(palette.accents[0]));
     root.setProperty("--accent-2", hex(palette.accents[1]));
     root.setProperty("--accent-3", hex(palette.accents[2]));
-    root.setProperty("--panel", rgba(paper, 0.94));
-    root.setProperty("--panel-line", rgba(ink, 0.18));
+    $("set-palette-note").textContent = palette.note;
+    this.applyPage(palette, palette.ramp[palette.pageTop]);
+    this.buildDock();
+    this.drawGateMark();
+  }
+
+  /**
+   * Re-inks the interface to the page the drawing is currently on.
+   *
+   * backdrop() walks the page down the grey ramp as the day ends, so chrome
+   * pinned to the palette's lightest ink turns into paper-coloured fog hanging
+   * over a night scene — which is exactly what the two scrims used to do. The
+   * page is the one source of truth for both the canvas and the CSS.
+   *
+   * Called every frame with the frame's own dt rather than handed to a CSS
+   * transition, so the chrome and the drawing are eased by the same clock.
+   * Holding the clock holds the page change with it, and there is no second
+   * timing source to drift against.
+   */
+  applyPage(palette: Palette, page: RGB, dt = 0): void {
+    const settled =
+      Math.abs(this.page.r - page.r) < 0.6 &&
+      Math.abs(this.page.g - page.g) < 0.6 &&
+      Math.abs(this.page.b - page.b) < 0.6;
+    if (settled && this.inked === palette.id) {
+      if (!this.dirty) return;
+    }
+    if (settled) {
+      this.page = { ...page };
+    } else {
+      const k = dt > 0 ? 1 - Math.pow(0.02, dt) : 1;
+      this.page = {
+        r: this.page.r + (page.r - this.page.r) * k,
+        g: this.page.g + (page.g - this.page.g) * k,
+        b: this.page.b + (page.b - this.page.b) * k,
+      };
+    }
+    this.inked = palette.id;
+    this.dirty = !settled;
+
+    const root = document.documentElement.style;
+    const ramp = palette.ramp;
+    const here = this.page;
+    const dark = luma(here) < 110;
+    // The far end of the ramp from the page, so contrast survives it moving.
+    const ink = dark ? ramp[ramp.length - 1] : ramp[0];
+    this.ink = ink;
+    root.setProperty("--paper", hex(here));
+    root.setProperty("--paper-2", hex(mix(here, ink, 0.08)));
+    root.setProperty("--ink", hex(ink));
+    root.setProperty("--ink-soft", hex(mix(ink, here, dark ? 0.44 : 0.38)));
+    root.setProperty("--panel", rgba(here, 0.94));
+    root.setProperty("--panel-line", rgba(ink, dark ? 0.28 : 0.18));
     root.setProperty("--shadow", `0 1px 0 ${rgba(ink, 0.12)}`);
     document.documentElement.style.colorScheme = dark ? "dark" : "light";
-    $("set-palette-note").textContent = palette.note;
-    this.buildDock();
+    document.documentElement.dataset.page = dark ? "dark" : "light";
+    const theme = document.querySelector('meta[name="theme-color"]');
+    if (theme) theme.setAttribute("content", hex(here));
+  }
+
+  /**
+   * The gate's mark, drawn from the real plan rather than a stock cube: the
+   * slots that hold halls stand up, the court stays a hole, and the mark grows
+   * a room whenever the building does.
+   */
+  private drawGateMark(): void {
+    const svg = document.querySelector<SVGSVGElement>(".gate-mark");
+    if (!svg) return;
+    const U = 6;
+    const RISE = 9.5;
+    const sx = (x: number, y: number) => (x - y) * U;
+    const sy = (x: number, y: number, z: number) => (x + y) * U * 0.5 - z;
+    const parts: string[] = [];
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    const note = (x: number, y: number) => {
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    };
+    const face = (pts: [number, number][], fill: string, stroke = false) => {
+      for (const [x, y] of pts) note(x, y);
+      const edge = stroke ? ' stroke="var(--paper)" stroke-width="0.7" stroke-linejoin="round"' : "";
+      parts.push(
+        `<polygon points="${pts.map(([x, y]) => `${r2(x)},${r2(y)}`).join(" ")}" fill="${fill}"${edge} />`,
+      );
+    };
+    // Far slots first, so a nearer room covers the one behind it.
+    const order = [...SLOTS].sort((a, b) => a.col + a.row - (b.col + b.row));
+    for (const slot of order) {
+      const c = slot.col;
+      const rw = slot.row;
+      const z = slot.hall ? RISE : 0;
+      if (!slot.hall) {
+        face([
+          [sx(c, rw), sy(c, rw, 0)], [sx(c + 1, rw), sy(c + 1, rw, 0)],
+          [sx(c + 1, rw + 1), sy(c + 1, rw + 1, 0)], [sx(c, rw + 1), sy(c, rw + 1, 0)],
+        ], "color-mix(in srgb, var(--ink) 55%, var(--paper))");
+        continue;
+      }
+      // South and east flanks, then the roof.
+      face([
+        [sx(c, rw + 1), sy(c, rw + 1, z)], [sx(c + 1, rw + 1), sy(c + 1, rw + 1, z)],
+        [sx(c + 1, rw + 1), sy(c + 1, rw + 1, 0)], [sx(c, rw + 1), sy(c, rw + 1, 0)],
+      ], "var(--ink-soft)");
+      face([
+        [sx(c + 1, rw), sy(c + 1, rw, z)], [sx(c + 1, rw + 1), sy(c + 1, rw + 1, z)],
+        [sx(c + 1, rw + 1), sy(c + 1, rw + 1, 0)], [sx(c + 1, rw), sy(c + 1, rw, 0)],
+      ], "color-mix(in srgb, var(--ink) 30%, var(--paper))");
+      // Ruled, so the rooms can be counted instead of reading as one slab.
+      face([
+        [sx(c, rw), sy(c, rw, z)], [sx(c + 1, rw), sy(c + 1, rw, z)],
+        [sx(c + 1, rw + 1), sy(c + 1, rw + 1, z)], [sx(c, rw + 1), sy(c, rw + 1, z)],
+      ], "var(--ink)", true);
+    }
+    const pad = 2;
+    svg.setAttribute(
+      "viewBox",
+      `${r2(minX - pad)} ${r2(minY - pad)} ${r2(maxX - minX + pad * 2)} ${r2(maxY - minY + pad * 2)}`,
+    );
+    svg.innerHTML = parts.join("");
   }
 
   private buildDock(): void {
@@ -203,6 +319,23 @@ export class Ui {
     all.append(key, name);
     all.addEventListener("click", () => this.hooks.goOverview());
     this.dock.append(hide, tab, row, all);
+    this.dockRow = row;
+    row.addEventListener("scroll", () => this.markDockScroll(), { passive: true });
+    // After layout, so scrollWidth is real.
+    requestAnimationFrame(() => this.markDockScroll());
+  }
+
+  /**
+   * Fades the end of the row when there are halls past the edge of it. Ten
+   * halls need about 1070px, and below that they simply disappeared: the row
+   * scrolls with its scrollbar hidden and nothing said so.
+   */
+  markDockScroll(): void {
+    const row = this.dockRow;
+    if (!row) return;
+    const over = row.scrollWidth - row.clientWidth;
+    row.classList.toggle("scrolls", over > 4);
+    row.classList.toggle("at-end", over > 4 && row.scrollLeft >= over - 2);
   }
 
   private buildKeys(): void {
@@ -260,6 +393,7 @@ export class Ui {
     facts.replaceChildren();
 
     if (person && hall) {
+      this.announce(`${person.name}. ${person.role}. ${hall.name}.`);
       kicker.textContent = `${hall.name} · ${person.tier}`;
       title.textContent = person.name;
       sub.textContent = person.role;
@@ -276,10 +410,12 @@ export class Ui {
       count.textContent = total ? `${index + 1} / ${total}` : "";
       $("d-prev").hidden = total < 2;
       $("d-next").hidden = total < 2;
+      $("d-nav").hidden = total < 2;
       return;
     }
 
     if (hall) {
+      this.announce(`${hall.name}. ${hall.tagline}. ${hall.people.length} in the hall.`);
       const keyLabel = hall.key.toUpperCase();
       kicker.textContent = hall.quarter
         ? `${hall.quarter} · Hall ${keyLabel} · ${hall.tagline}`
@@ -293,9 +429,11 @@ export class Ui {
       count.textContent = "";
       $("d-prev").hidden = false;
       $("d-next").hidden = false;
+      $("d-nav").hidden = hall.people.length < 1;
       return;
     }
 
+    this.announce(`The whole block. ${halls.length} halls.`);
     kicker.textContent = "One building";
     title.textContent = `${halls.length} halls, one clock`;
     sub.textContent = "September 2026";
@@ -311,6 +449,21 @@ export class Ui {
     count.textContent = "";
     $("d-prev").hidden = true;
     $("d-next").hidden = true;
+    // Nothing to page through, so the rule that separates it goes too.
+    $("d-nav").hidden = true;
+  }
+
+  /**
+   * Says what is being read, once, when it changes.
+   *
+   * The card itself carried aria-live, and it is rewritten every 0.45s while a
+   * figure is selected, so a screen reader read the whole dossier twice a
+   * second for as long as you stood still.
+   */
+  private announce(text: string): void {
+    if (text === this.spoken) return;
+    this.spoken = text;
+    $("d-live").textContent = text;
   }
 
   markDock(hallId: string | null): void {
@@ -361,9 +514,17 @@ export class Ui {
       span.textContent = role;
       this.tooltip.append(span);
     }
-    this.tooltip.style.left = `${x}px`;
-    this.tooltip.style.top = `${y}px`;
+    // Placed above and centred on the cursor, so near an edge it would hang
+    // off the page and be clipped by the body's overflow.
     this.tooltip.classList.add("on");
+    const box = this.tooltip.getBoundingClientRect();
+    const margin = 8;
+    const half = box.width / 2;
+    const left = Math.min(Math.max(x, half + margin), window.innerWidth - half - margin);
+    const above = y - box.height * 0.4;
+    const top = above < box.height + margin ? y + box.height * 1.7 : y;
+    this.tooltip.style.left = `${Math.round(left)}px`;
+    this.tooltip.style.top = `${Math.round(top)}px`;
   }
 
   hideTooltip(): void {
@@ -479,6 +640,15 @@ export class Ui {
 
   private paintFinder(): void {
     this.finderList.replaceChildren();
+    if (!this.filtered.length) {
+      const note = document.createElement("li");
+      note.className = "finder-empty";
+      note.textContent = this.finderInput.value.trim()
+        ? `Nothing in the building answers to that.`
+        : "Type to find a model, a hall or a command.";
+      this.finderList.append(note);
+      return;
+    }
     this.filtered.forEach((row, at) => {
       const li = document.createElement("li");
       li.dataset.at = String(at);
@@ -655,9 +825,9 @@ export class Ui {
   private wireMinimap(): void {
     this.minimap.addEventListener("click", (event) => {
       const rect = this.minimap.getBoundingClientRect();
-      const layout = mapLayout(this.minimap.width, this.minimap.height);
-      const wx = (((event.clientX - rect.left) / rect.width) * this.minimap.width - layout.offX) / layout.s - GROUNDS_REACH;
-      const wy = (((event.clientY - rect.top) / rect.height) * this.minimap.height - layout.offY) / layout.s - GROUNDS_REACH;
+      const layout = mapLayout(rect.width, rect.height);
+      const wx = (event.clientX - rect.left - layout.offX) / layout.s - GROUNDS_REACH;
+      const wy = (event.clientY - rect.top - layout.offY) / layout.s - GROUNDS_REACH;
       const slot = SLOTS.find(
         (item) => wx >= item.x && wx < item.x + RW && wy >= item.y && wy < item.y + RD,
       );
@@ -666,17 +836,47 @@ export class Ui {
     });
   }
 
-  drawMinimap(cam: Camera, palette: Palette, selectedHall: string | null, hovered: string | null): void {
+  /**
+   * Matches the backing store to the box the browser gives the canvas, so the
+   * plan is drawn at device resolution instead of being resampled. Returns the
+   * size to lay out in, in CSS pixels.
+   */
+  private sizeMap(): { w: number; h: number } {
+    const rect = this.minimap.getBoundingClientRect();
+    const w = Math.max(80, Math.round(rect.width));
+    const h = Math.max(40, Math.round(rect.height));
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const bw = Math.round(w * dpr);
+    const bh = Math.round(h * dpr);
+    if (this.minimap.width !== bw || this.minimap.height !== bh) {
+      this.minimap.width = bw;
+      this.minimap.height = bh;
+    }
+    this.mapCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { w, h };
+  }
+
+  /**
+   * The plan, and the title block that fills the rest of the sheet.
+   *
+   * The plan is about three to two; the canvas used to be nearly four to one,
+   * so most of it was flat paper with a small plan floating in the middle. The
+   * space to the right of the plan now carries what a drawing of this kind
+   * carries: which way is north, how big a metre is, and what sheet this is.
+   */
+  drawMinimap(cam: Camera, selectedHall: string | null, hovered: string | null, cssPerUnit: number): void {
     const ctx = this.mapCtx;
-    const w = this.minimap.width;
-    const h = this.minimap.height;
-    const { s, px, py } = mapLayout(w, h);
+    const { w, h } = this.sizeMap();
+    const layout = mapLayout(w, h);
+    const { s, px, py } = layout;
+    const page = this.page;
+    const ink = this.ink;
 
     ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = hex(palette.roles.paper);
+    ctx.fillStyle = hex(page);
     ctx.fillRect(0, 0, w, h);
 
-    ctx.fillStyle = hex(mix(palette.roles.paper, palette.roles.ink, 0.07));
+    ctx.fillStyle = hex(mix(page, ink, 0.07));
     ctx.fillRect(
       px(-GROUNDS_REACH), py(-GROUNDS_REACH),
       (BLOCK_W + GROUNDS_REACH * 2) * s, (BLOCK_D + GROUNDS_REACH * 2) * s,
@@ -686,7 +886,7 @@ export class Ui {
       const active = slot.hall?.id === selectedHall;
       if (!slot.hall) {
         // The court, drawn open.
-        ctx.strokeStyle = hex(mix(palette.roles.ink, palette.roles.paper, 0.7));
+        ctx.strokeStyle = hex(mix(ink, page, 0.7));
         ctx.setLineDash([2, 2]);
         ctx.lineWidth = 1;
         ctx.strokeRect(px(slot.x) + 1.5, py(slot.y) + 1.5, RW * s - 3, RD * s - 3);
@@ -694,14 +894,12 @@ export class Ui {
         continue;
       }
       ctx.fillStyle = hex(
-        active
-          ? mix(slot.hall.accent, palette.roles.paper, 0.4)
-          : mix(palette.roles.paper, palette.roles.ink, 0.1),
+        active ? mix(slot.hall.accent, page, 0.4) : mix(page, ink, 0.1),
       );
       ctx.fillRect(px(slot.x) + 1, py(slot.y) + 1, RW * s - 2, RD * s - 2);
       ctx.fillStyle = hex(slot.hall.accent);
       ctx.fillRect(px(slot.x) + 1, py(slot.y + RD) - 3, RW * s - 2, 2);
-      ctx.strokeStyle = hex(mix(palette.roles.ink, palette.roles.paper, 0.55));
+      ctx.strokeStyle = hex(mix(ink, page, 0.55));
       ctx.lineWidth = 1;
       ctx.strokeRect(px(slot.x) + 0.5, py(slot.y) + 0.5, RW * s - 1, RD * s - 1);
     }
@@ -720,47 +918,175 @@ export class Ui {
     ctx.beginPath();
     corners.forEach((c, i) => (i === 0 ? ctx.moveTo(px(c.x), py(c.y)) : ctx.lineTo(px(c.x), py(c.y))));
     ctx.closePath();
-    ctx.strokeStyle = hex(palette.accents[0]);
+    ctx.strokeStyle = hex(this.accent);
     ctx.lineWidth = 1.5;
     ctx.stroke();
-    ctx.fillStyle = rgba(palette.accents[0], 0.1);
+    ctx.fillStyle = rgba(this.accent, 0.1);
     ctx.fill();
     ctx.restore();
 
     for (const person of this.people) {
       const isHover = person.id === hovered;
-      ctx.fillStyle = hex(isHover ? palette.accents[0] : scale(person.accent, 0.95));
+      ctx.fillStyle = hex(isHover ? this.accent : scale(person.accent, 0.95));
       const r = isHover ? 3 : 2;
       ctx.fillRect(px(person.x) - r / 2, py(person.y) - r / 2, r, r);
     }
+
+    this.drawTitleBlock(ctx, layout, w, h, cam, cssPerUnit);
 
     const hall = halls.find((x) => x.id === selectedHall);
     this.mapNote.textContent = hall
       ? `${hall.name} · ${hall.tagline}`
       : `The block · ${halls.length} halls`;
   }
+
+  /** North, scale and the sheet's own particulars, to the right of the plan. */
+  private drawTitleBlock(
+    ctx: CanvasRenderingContext2D,
+    layout: MapLayout,
+    w: number, h: number,
+    cam: Camera,
+    cssPerUnit: number,
+  ): void {
+    const ink = this.ink;
+    const soft = hex(mix(ink, this.page, 0.42));
+    const x0 = layout.offX + layout.planW + MAP_GAP;
+    const top = MAP_PAD;
+    const bottom = h - MAP_PAD;
+
+    ctx.strokeStyle = hex(mix(ink, this.page, 0.72));
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x0 - MAP_GAP / 2 + 0.5, top);
+    ctx.lineTo(x0 - MAP_GAP / 2 + 0.5, bottom);
+    ctx.stroke();
+
+    ctx.textBaseline = "alphabetic";
+    ctx.textAlign = "left";
+    ctx.font = MAP_FONT;
+    if ("letterSpacing" in ctx) (ctx as { letterSpacing: string }).letterSpacing = "0.08em";
+    ctx.fillStyle = soft;
+    ctx.fillText("BLOCK PLAN", x0, top + 9);
+
+    // North. The building's -y edge is north, and it swings with the view, so
+    // the rose keeps its own column clear of the fields beside it.
+    const nx = unrotX(cam.yaw, 0, -1);
+    const ny = unrotY(cam.yaw, 0, -1);
+    const dx = nx - ny;
+    const dy = (nx + ny) * 0.5;
+    const len = Math.hypot(dx, dy) || 1;
+    const ax = dx / len;
+    const ay = dy / len;
+    const cx = x0 + 17;
+    const cy = top + 44;
+    const r = 13;
+    const waist = 3.8;
+    ctx.strokeStyle = hex(mix(ink, this.page, 0.66));
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+    // A filled half and an open half, the way a compass needle is drawn.
+    const tipX = cx + ax * r;
+    const tipY = cy + ay * r;
+    const tailX = cx - ax * r * 0.62;
+    const tailY = cy - ay * r * 0.62;
+    ctx.fillStyle = hex(ink);
+    ctx.beginPath();
+    ctx.moveTo(tipX, tipY);
+    ctx.lineTo(cx - ay * waist, cy + ax * waist);
+    ctx.lineTo(tailX, tailY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = hex(ink);
+    ctx.beginPath();
+    ctx.moveTo(tipX, tipY);
+    ctx.lineTo(cx + ay * waist, cy - ax * waist);
+    ctx.lineTo(tailX, tailY);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.fillStyle = hex(ink);
+    ctx.textAlign = "center";
+    ctx.fillText("N", cx + ax * (r + 7), cy + ay * (r + 7) + 3);
+
+    // Fields, in their own column clear of the rose's swing.
+    ctx.textAlign = "left";
+    ctx.fillStyle = soft;
+    const fx = x0 + 2 * r + 14;
+    ctx.fillText(`${halls.length} HALLS`, fx, top + 40);
+    ctx.fillText(`${GRID.cols} x ${GRID.rows} GRID`, fx, top + 52);
+
+    // Scale bar, reading the camera: a round number of metres, drawn the
+    // length it actually measures on the drawing.
+    const room = w - x0 - MAP_PAD;
+    const want = Math.min(96, room);
+    let metres = 1;
+    for (let decade = 0; decade <= 3; decade++) {
+      for (const step of [1, 2, 5]) {
+        const candidate = step * Math.pow(10, decade);
+        if (candidate * cssPerUnit <= want) metres = candidate;
+      }
+    }
+    const barLen = Math.max(14, Math.min(room, metres * cssPerUnit));
+    const by = bottom - 12;
+    ctx.fillStyle = hex(ink);
+    ctx.fillRect(x0, by, barLen, 3);
+    // Alternating cells, so the bar reads as a rule rather than a block.
+    ctx.fillStyle = hex(this.page);
+    for (let i = 1; i < 4; i += 2) ctx.fillRect(x0 + (barLen * i) / 4, by, barLen / 4, 3);
+    ctx.strokeStyle = hex(ink);
+    ctx.strokeRect(x0 + 0.5, by + 0.5, barLen - 1, 2);
+    ctx.fillStyle = soft;
+    ctx.textAlign = "left";
+    ctx.fillText("0", x0, by - 5);
+    ctx.textAlign = "right";
+    ctx.fillText(`${metres} M`, x0 + barLen, by - 5);
+    ctx.textAlign = "left";
+    if ("letterSpacing" in ctx) (ctx as { letterSpacing: string }).letterSpacing = "0px";
+  }
+
+  private get accent(): RGB {
+    const active = PALETTES.find((p) => p.id === this.settings.palette) ?? PALETTES[0];
+    return active.accents[0];
+  }
 }
 
-function mapLayout(w: number, h: number): {
+const MAP_PAD = 8;
+const MAP_GAP = 10;
+const MAP_TITLE_W = 116;
+const MAP_FONT = '9px ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+
+type MapLayout = {
   s: number;
   offX: number;
   offY: number;
+  planW: number;
+  planH: number;
   px: (x: number) => number;
   py: (y: number) => number;
-} {
-  const pad = 6;
+};
+
+function mapLayout(w: number, h: number): MapLayout {
   const worldW = BLOCK_W + GROUNDS_REACH * 2;
   const worldH = BLOCK_D + GROUNDS_REACH * 2;
-  const s = Math.min((w - pad * 2) / worldW, (h - pad * 2) / worldH);
-  const offX = pad + ((w - pad * 2) - worldW * s) / 2;
-  const offY = pad + ((h - pad * 2) - worldH * s) / 2;
+  const planW = Math.max(40, w - MAP_PAD * 2 - MAP_GAP - MAP_TITLE_W);
+  const planH = Math.max(30, h - MAP_PAD * 2);
+  const s = Math.min(planW / worldW, planH / worldH);
+  const offX = MAP_PAD + (planW - worldW * s) / 2;
+  const offY = MAP_PAD + (planH - worldH * s) / 2;
   return {
     s,
     offX,
     offY,
+    planW,
+    planH,
     px: (x) => offX + (x + GROUNDS_REACH) * s,
     py: (y) => offY + (y + GROUNDS_REACH) * s,
   };
+}
+
+/** Two decimals, for SVG point lists. */
+function r2(n: number): string {
+  return (Math.round(n * 100) / 100).toString();
 }
 
 function addFact(list: HTMLElement, label: string, value: string): void {
@@ -782,10 +1108,6 @@ function describe(person: Person): string {
   }
 }
 
-function isDark(palette: Palette): boolean {
-  const paper = palette.roles.paper;
-  return paper.r * 0.299 + paper.g * 0.587 + paper.b * 0.114 < 110;
-}
 
 function rgba(c: { r: number; g: number; b: number }, a: number): string {
   return `rgba(${c.r | 0}, ${c.g | 0}, ${c.b | 0}, ${a})`;

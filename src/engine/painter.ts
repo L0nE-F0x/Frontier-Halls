@@ -37,7 +37,7 @@ export class Painter {
   tris = 0;
   /**
    * 0..1 toward washColor, applied after shading. Focusing a hall washes the
-   * rest of the wing back so the subject reads without anything being hidden.
+   * rest of the block back so the subject reads without anything being hidden.
    */
   wash = 0;
   washColor: RGB = { r: 214, g: 210, b: 204 };

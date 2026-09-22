@@ -1,9 +1,9 @@
 /**
- * The wing is one building, stepping by RW along +x. Halls are divided by
+ * The block is one building, a grid of rooms. Halls are divided by
  * partitions rather than full walls, because in this projection a full-height
  * wall between two rooms hides the back corner of the room behind it. The
  * partitions are solid to chest height, glazed above that, and open to the
- * trusses. You can see the whole wing at once and it still reads as rooms.
+ * trusses. You can see the whole block at once and it still reads as rooms.
  */
 export const RW = 16;
 export const RD = 13;

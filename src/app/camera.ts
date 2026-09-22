@@ -3,7 +3,7 @@ import type { Camera, Vec3, Yaw } from "../engine/types";
 
 export type Insets = { top: number; right: number; bottom: number; left: number };
 
-// Low enough that the whole wing genuinely fits; the wing is eight rooms long.
+// Low enough that the whole block genuinely fits, sidewalk and all.
 const MIN_S = 1.1;
 const MAX_S = 120;
 

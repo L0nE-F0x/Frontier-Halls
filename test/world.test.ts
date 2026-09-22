@@ -4,6 +4,7 @@ import {
   allStations, BLOCK_D, BLOCK_W, DOOR_Y, GRID, halls, hallOrigin, hallPoints, layoutNav,
   SLOTS, slotOf, blockPoints,
 } from "../src/world/building";
+import { ROSTER } from "../src/world/roster";
 import { exteriorPosts, GROUNDS_REACH } from "../src/world/grounds";
 import { Crowd } from "../src/world/crowd";
 import { RD, RW } from "../src/world/metrics";
@@ -17,8 +18,14 @@ describe("halls", () => {
   it("are numbered in order with unique ids and keys", () => {
     expect(new Set(halls.map((h) => h.id)).size).toBe(halls.length);
     expect(new Set(halls.map((h) => h.key)).size).toBe(halls.length);
-    const people = halls.flatMap((hall) => hall.people.map((person) => person.id));
-    expect(new Set(people).size).toBe(people.length);
+    // A seat id is a role, so "flagship" repeats across the halls. What has to
+    // be unique is the seat within its hall, and the pair across the building.
+    for (const hall of halls) {
+      const ids = hall.people.map((person) => person.id);
+      expect(new Set(ids).size, hall.id).toBe(ids.length);
+    }
+    const seats = halls.flatMap((hall) => hall.people.map((person) => `${hall.id}/${person.id}`));
+    expect(new Set(seats).size).toBe(seats.length);
     halls.forEach((hall, at) => expect(hall.index).toBe(at));
   });
 
@@ -220,5 +227,54 @@ describe("crowd", () => {
     for (let i = 0; i < 6000; i++) crowd.update(1 / 60, clock, true);
     const moved = crowd.people.filter((p, i) => Math.hypot(p.x - before[i].x, p.y - before[i].y) > 0.5);
     expect(moved.length).toBeGreaterThan(crowd.people.length / 3);
+  });
+});
+
+describe("the roster", () => {
+  it("has a seat for every figure in the building", () => {
+    for (const hall of halls) {
+      for (const person of hall.people) {
+        expect(ROSTER, `${hall.id}/${person.id}`).toHaveProperty(`${hall.id}/${person.id}`);
+      }
+    }
+  });
+
+  it("seats nobody who is not in a hall, so a rename cannot go unnoticed", () => {
+    const seats = new Set(halls.flatMap((hall) => hall.people.map((p) => `${hall.id}/${p.id}`)));
+    for (const key of Object.keys(ROSTER)) expect(seats, key).toContain(key);
+  });
+
+  it("leaves no template token in the copy the dossier shows", () => {
+    const token = /\{(name|short|roster)\}/;
+    for (const hall of halls) {
+      expect(hall.reading, `${hall.id}.reading`).not.toMatch(token);
+      expect(hall.blurb, `${hall.id}.blurb`).not.toMatch(token);
+      for (const fact of hall.facts) expect(fact.value, `${hall.id}.${fact.label}`).not.toMatch(token);
+      for (const person of hall.people) {
+        expect(person.why, `${person.id}.why`).not.toMatch(token);
+        expect(person.doing, `${person.id}.doing`).not.toMatch(token);
+        expect(person.role, `${person.id}.role`).not.toMatch(token);
+      }
+    }
+  });
+
+  it("names every figure from the roster, not from the hall file", () => {
+    for (const hall of halls) {
+      for (const person of hall.people) {
+        const seat = ROSTER[`${hall.id}/${person.id}`];
+        expect(person.name, `${hall.id}/${person.id}`).toBe(seat.name);
+        expect(person.short, `${hall.id}/${person.id} short`).toBe(seat.short);
+      }
+    }
+  });
+
+  it("lists the hall's cast in the fact that promises it", () => {
+    for (const hall of halls) {
+      const roster = hall.facts.find((f) => f.label === "In the hall");
+      if (!roster) continue;
+      for (const person of hall.people) {
+        expect(roster.value, `${hall.id} names ${person.id}`).toContain(person.short ?? person.name);
+      }
+    }
   });
 });

@@ -59,7 +59,7 @@
       </label>
     </header>
 
-    <aside id="dossier" aria-live="polite">
+    <aside id="dossier">
       <button type="button" class="fold" data-fold="dossier" title="Hide the readout">Hide</button>
       <button type="button" class="fold-tab" data-fold="dossier" title="Show the readout">Readout</button>
       <div class="card-head">
@@ -72,7 +72,7 @@
       <p id="d-why" class="why"></p>
       <dl id="d-facts" class="facts"></dl>
       <p id="d-ethos" class="ethos"></p>
-      <nav class="card-nav">
+      <nav class="card-nav" id="d-nav">
         <button id="d-prev" type="button" title="Previous figure (,)">&larr;</button>
         <span id="d-count" class="count"></span>
         <button id="d-next" type="button" title="Next figure (.)">&rarr;</button>
@@ -98,12 +98,15 @@
     </div>
 
     <div id="map-wrap">
-      <button type="button" class="fold" data-fold="map" title="Hide the plan">Hide</button>
       <button type="button" class="fold-tab" data-fold="map" title="Show the plan">Plan</button>
-      <canvas id="minimap" width="440" height="120" aria-label="Plan of the block"></canvas>
-      <p id="map-note" class="map-note"></p>
+      <canvas id="minimap" width="286" height="108" aria-label="Plan of the block"></canvas>
+      <div class="map-foot">
+        <p id="map-note" class="map-note"></p>
+        <button type="button" class="fold" data-fold="map" title="Hide the plan">Hide</button>
+      </div>
     </div>
 
+    <p id="d-live" class="sr" aria-live="polite"></p>
     <div id="tooltip" role="status"></div>
     <div id="toasts" aria-live="polite"></div>
 

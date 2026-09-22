@@ -1,22 +1,15 @@
+import { BLUE_NOISE, NOISE_MASK, NOISE_SIZE } from "./bluenoise";
 import { luma } from "./color";
 import type { Palette } from "./palettes";
 import type { RGB } from "./types";
 
-/**
- * Interleaved gradient noise, in place of an ordered matrix.
- *
- * The classic 8x8 Bayer matrix has rows whose averages alternate high and low,
- * and on a surface whose brightness sits near a threshold that alternation
- * shows up as horizontal stripes across the whole floor. This is dispersed in
- * every direction instead, so a gradient breaks into stipple rather than into
- * scanlines, and it costs two multiplies.
+/*
+ * The dither threshold comes from a baked blue-noise tile. Two earlier
+ * attempts are worth remembering: an ordered Bayer matrix has rows whose
+ * averages alternate high and low, and it striped every floor in the building;
+ * interleaved gradient noise fixed the stripes but laid down a diagonal weave
+ * of its own, which a large smooth gradient made obvious. See bluenoise.ts.
  */
-function ign(x: number, y: number): number {
-  const v = 0.06711056 * x + 0.00583715 * y;
-  const f = v - Math.floor(v);
-  const w = 52.9829189 * f;
-  return w - Math.floor(w) - 0.5;
-}
 
 /** Value hash. Stable per pixel, so the grain does not boil between frames. */
 const GRAIN = new Float32Array(4096);
@@ -124,8 +117,11 @@ export function buildInkTable(palette: Palette): InkTable {
 
 /**
  * Reduces the frame to the palette in place. Two inks are chosen per pixel and
- * the ordered matrix decides which of the two this pixel actually gets, so a
- * gradient reads as a stipple between neighbours rather than a hard step.
+ * the blue-noise threshold decides which of the two this pixel actually gets,
+ * so a gradient reads as a stipple between neighbours rather than a hard step.
+ *
+ * `page` is the exact ink the frame was cleared to. It is what the vignette
+ * fades toward, so the empty margin of the drawing stays perfectly flat.
  */
 export function quantize(
   data: Uint8ClampedArray,
@@ -135,15 +131,25 @@ export function quantize(
   strength: number,
   grainAmount: number,
   vignette = 0,
+  page?: RGB,
 ): void {
   const { a, b, t, flat } = table;
   const cx = w / 2;
   const cy = h / 2;
   const radial = vignette > 0 ? 1 / (cx * cx + cy * cy) : 0;
   const dither = strength > 0 || grainAmount > 0;
+  // The edge treatment fades toward the page rather than toward black. A pixel
+  // that is already the page colour is then left exactly alone, which is the
+  // whole point of backdrop() picking an exact ink: darkening it instead walks
+  // the empty margin of the frame off that ink and into the gap between two
+  // ramp steps, where it dithers into a field of dust.
+  const pr = page ? page.r : 0;
+  const pg = page ? page.g : 0;
+  const pb = page ? page.b : 0;
 
   for (let y = 0; y < h; y++) {
     const rowG = (y * 131) & 4095;
+    const noiseRow = (y & NOISE_MASK) * NOISE_SIZE;
     const dy = y - cy;
     const dy2 = dy * dy;
     let i = (y * w) << 2;
@@ -156,16 +162,18 @@ export function quantize(
         // stippled by the same matrix as everything else.
         const dx = x - cx;
         const f = (dx * dx + dy2) * radial;
-        const k = 1 - vignette * f * f;
-        r *= k;
-        g *= k;
-        bl *= k;
+        const k = vignette * f * f;
+        r += (pr - r) * k;
+        g += (pg - g) * k;
+        bl += (pb - bl) * k;
       }
       const index =
         ((r >> 3) << (LUT_BITS * 2)) | ((g >> 3) << LUT_BITS) | (bl >> 3);
       let pick: number;
       if (dither) {
-        const noise = ign(x, y) * strength + GRAIN[(rowG + x * 7) & 4095] * grainAmount;
+        const noise =
+          (BLUE_NOISE[noiseRow + (x & NOISE_MASK)] - 0.5) * strength +
+          GRAIN[(rowG + x * 7) & 4095] * grainAmount;
         pick = (t[index] * (1 / 255) + noise > 0.5 ? b[index] : a[index]) * 3;
       } else {
         pick = (t[index] > 127 ? b[index] : a[index]) * 3;
@@ -184,9 +192,7 @@ export function quantize(
  */
 export function backdrop(table: InkTable, daylight: number): RGB {
   const ramp = table.palette.ramp;
-  const at = daylight > 0.58 ? ramp.length - 1
-    : daylight > 0.26 ? ramp.length - 2
-      : daylight > 0.08 ? ramp.length - 3
-        : ramp.length - 4;
-  return ramp[Math.min(ramp.length - 1, Math.max(0, at))];
+  const top = table.palette.pageTop;
+  const step = daylight > 0.58 ? 0 : daylight > 0.26 ? 1 : daylight > 0.08 ? 2 : 3;
+  return ramp[Math.min(ramp.length - 1, Math.max(0, top - step))];
 }

@@ -13,6 +13,14 @@ export type Palette = {
   note: string;
   ramp: RGB[];
   accents: RGB[];
+  /**
+   * Which step of the ramp the page sits on in full daylight. It walks down
+   * from here as the day ends. Left at the top of the ramp a palette is a
+   * light one; a palette whose whole idea is a dark sheet — a blueprint, a
+   * terminal, the building after hours — says so by starting lower, which is
+   * what makes it dark at noon as well as at midnight.
+   */
+  pageTop: number;
   /** Named roles the world reads so materials follow the palette. */
   roles: {
     lamp: RGB;
@@ -30,6 +38,8 @@ type Spec = {
   note: string;
   ramp: string[];
   accents: string[];
+  /** Index into the sorted ramp. Absent means the top of it: a light page. */
+  pageTop?: number;
   roles: { lamp: number; led: number; seal: number; sky: number };
 };
 
@@ -48,6 +58,7 @@ const SPECS: Spec[] = [
     note: "Drawn in white on a wet blue sheet. The lamp reads as heat.",
     ramp: ["#071630", "#12294b", "#1e3f6d", "#3a6a99", "#7ba3cc", "#e0eaf7"],
     accents: ["#f2a03c", "#5fd6c4", "#e2617a"],
+    pageTop: 2,
     roles: { lamp: 0, led: 1, seal: 2, sky: 1 },
   },
   {
@@ -56,6 +67,7 @@ const SPECS: Spec[] = [
     note: "The building after hours. Everything is lamp, LED, or nothing.",
     ramp: ["#0a0a10", "#1a1b24", "#2e303c", "#474a5a", "#6d7183", "#b6b9c6"],
     accents: ["#ffb347", "#3fd0d8", "#c56bd0"],
+    pageTop: 1,
     roles: { lamp: 0, led: 1, seal: 2, sky: 1 },
   },
   {
@@ -72,6 +84,7 @@ const SPECS: Spec[] = [
     note: "One tube, one gun. Read it the way you read a terminal.",
     ramp: ["#020604", "#07180e", "#0e3a20", "#1f6b3c", "#43a869", "#7bf0a4"],
     accents: ["#d8ff6b", "#33c9b0", "#f2b13c"],
+    pageTop: 1,
     roles: { lamp: 2, led: 0, seal: 1, sky: 1 },
   },
   {
@@ -93,6 +106,7 @@ function build(spec: Spec): Palette {
     note: spec.note,
     ramp,
     accents,
+    pageTop: Math.min(ramp.length - 1, Math.max(0, spec.pageTop ?? ramp.length - 1)),
     roles: {
       lamp: accents[spec.roles.lamp],
       led: accents[spec.roles.led],

@@ -2,7 +2,7 @@
 const CELL = 0.5;
 
 /**
- * A coarse occupancy grid over the whole wing, plus A* on it. Props register
+ * A coarse occupancy grid over the whole block, plus A* on it. Props register
  * their footprint once at layout time; after that the figures can walk from any
  * hall to any other without anyone hand-authoring a path.
  */
