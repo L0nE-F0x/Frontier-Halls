@@ -75,6 +75,10 @@ const hooks = {
     ui.toast("Back to the defaults");
   },
   screenshot: () => saveShot(),
+  layoutChanged: () => {
+    rig.insets = insets();
+    rig.refit(false);
+  },
 };
 
 const ui = new Ui(hooks, settings, clock);
@@ -110,10 +114,27 @@ function insets() {
   const wide = window.innerWidth > 900;
   const scale = view.width / Math.max(1, raster.w);
   const overview = selection.kind === "overview";
+  const open = ui.chrome();
+  if (ui.atGate) {
+    const bottom = Math.min(window.innerHeight * 0.48, wide ? 320 : 360);
+    return {
+      top: 36 / scale,
+      right: 28 / scale,
+      bottom: bottom / scale,
+      left: 28 / scale,
+    };
+  }
+  const top = open.hud ? (overview ? 86 : 124) : 22;
+  const right = wide && open.dossier ? 366 : 18;
+  let bottom: number;
+  if (!wide) bottom = open.dossier ? 210 : open.dock ? 88 : 28;
+  else if (open.map) bottom = overview ? 112 : 146;
+  else if (open.dock) bottom = overview ? 72 : 96;
+  else bottom = 28;
   return {
-    top: (overview ? 86 : 124) / scale,
-    right: (wide ? 366 : 18) / scale,
-    bottom: (wide ? (overview ? 112 : 146) : 210) / scale,
+    top: top / scale,
+    right: right / scale,
+    bottom: bottom / scale,
     left: (overview ? 14 : 20) / scale,
   };
 }
@@ -348,6 +369,7 @@ function updateHover(bx: number, by: number, clientX: number, clientY: number): 
 }
 
 function click(bx: number, by: number): void {
+  if (ui.atGate) return;
   const id = raster.idAt(bx, by);
   const person = crowd.byPickId.get(id);
   if (person) {
@@ -365,20 +387,40 @@ function click(bx: number, by: number): void {
 window.addEventListener("keydown", (event) => {
   const typing = event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement;
   if ((event.key === "k" || event.key === "K") && (event.metaKey || event.ctrlKey)) {
+    if (ui.atGate) return;
     event.preventDefault();
     ui.openFinder();
     return;
   }
   if (typing) return;
   if (event.key === "/") {
+    if (ui.atGate) return;
     event.preventDefault();
     ui.openFinder();
     return;
   }
   if (event.key === "Escape") {
     if (ui.closeSheets()) return;
+    if (ui.atGate) return;
     if (selection.kind === "person") showHall(selection.hallId);
     else showOverview();
+    return;
+  }
+  if (ui.atGate) {
+    if (event.key === "Enter" && !ui.sheetOpen && !(event.target instanceof HTMLButtonElement)) {
+      event.preventDefault();
+      ui.enter();
+    } else if (event.key === "s" || event.key === "S") {
+      ui.toggleSheet(ui.settingsSheet);
+    } else if (event.key === "q" || event.key === "Q") {
+      hooks.rotate(-1);
+    } else if (event.key === "e" || event.key === "E") {
+      hooks.rotate(1);
+    } else if (event.key === "+" || event.key === "=") {
+      rig.zoomCentre(1.3);
+    } else if (event.key === "-" || event.key === "_") {
+      rig.zoomCentre(1 / 1.3);
+    }
     return;
   }
   const pressed = event.key.length === 1 ? event.key.toLowerCase() : event.key;
@@ -398,6 +440,7 @@ window.addEventListener("keydown", (event) => {
     case "t": case "T": jumpTime(); break;
     case "s": case "S": ui.toggleSheet(ui.settingsSheet); break;
     case "f": case "F": saveShot(); break;
+    case "\\": ui.toggleAllChrome(); break;
     case "?": ui.toggleSheet(ui.helpSheet); break;
     case "p": case "P": hooks.togglePause(); break;
   }

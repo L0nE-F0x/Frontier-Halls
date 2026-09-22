@@ -6,7 +6,7 @@
     <meta name="color-scheme" content="light dark" />
     <meta
       name="description"
-      content="An isometric cutaway of eight frontier AI labs as one building, drawn in five inks and running on one clock."
+      content="An isometric cutaway of the frontier AI labs as one building, drawn in a handful of inks and running on one clock."
     />
     <title>Frontier Halls</title>
   </head>
@@ -14,6 +14,8 @@
     <canvas id="view" aria-label="Isometric cutaway of the frontier halls"></canvas>
 
     <header id="hud">
+      <button type="button" class="fold" data-fold="hud" title="Hide the clock">Hide</button>
+      <button type="button" class="fold-tab" data-fold="hud" title="Show the clock">Clock</button>
       <p class="mark">Frontier&nbsp;Halls</p>
       <p class="clockline">
         <span id="clock" class="clock">09:10</span>
@@ -27,6 +29,8 @@
     </header>
 
     <aside id="dossier" aria-live="polite">
+      <button type="button" class="fold" data-fold="dossier" title="Hide the readout">Hide</button>
+      <button type="button" class="fold-tab" data-fold="dossier" title="Show the readout">Readout</button>
       <div class="card-head">
         <p id="d-kicker" class="kicker"></p>
         <h1 id="d-title"></h1>
@@ -47,6 +51,8 @@
     <nav id="dock" aria-label="Halls"></nav>
 
     <div id="tools" role="toolbar" aria-label="View controls">
+      <button type="button" class="fold" data-fold="tools" title="Hide these controls">Hide</button>
+      <button type="button" class="fold-tab" data-fold="tools" title="Show the controls">Tools</button>
       <button type="button" data-act="rotate-ccw" title="Rotate left (Q)">&#8630;</button>
       <button type="button" data-act="rotate-cw" title="Rotate right (E)">&#8631;</button>
       <span class="tool-sep"></span>
@@ -57,9 +63,12 @@
       <button type="button" data-act="search" title="Search (Ctrl K)">Search</button>
       <button type="button" data-act="settings" title="Settings (S)">Settings</button>
       <button type="button" data-act="help" title="Keys (?)">?</button>
+      <button type="button" data-act="fold" title="Hide every panel (\)">Fold</button>
     </div>
 
     <div id="map-wrap">
+      <button type="button" class="fold" data-fold="map" title="Hide the plan">Hide</button>
+      <button type="button" class="fold-tab" data-fold="map" title="Show the plan">Plan</button>
       <canvas id="minimap" width="440" height="120" aria-label="Plan of the block"></canvas>
       <p id="map-note" class="map-note"></p>
     </div>
@@ -137,8 +146,51 @@
         <dl class="keys" id="keys-list"></dl>
         <p class="note">
           One building, ten halls, one clock. A sidewalk runs around the outside. Drag to look,
-          scroll to zoom, click a figure to read who it is. Everything in the room is drawn from five inks.
+          scroll to zoom, click a figure to read who it is. Everything in the room is drawn from a handful of inks.
+          Hide any panel with its mark, or press \ to clear them all.
         </p>
+      </div>
+    </div>
+
+    <div id="about-panel" class="sheet" hidden>
+      <div class="sheet-body">
+        <p class="kicker">What is this?</p>
+        <h2>One building, ten halls, one clock</h2>
+        <p class="about-p">
+          Frontier Halls is a cutaway of ten frontier labs drawn as one building. The halls sit
+          around a court. A clock stands in the middle of it, and every wall clock in the building
+          is reading that one.
+        </p>
+        <p class="about-p">
+          The figures are models. They are not on a path someone laid down: every few seconds each
+          one decides where to go from the hour and from its own habits. Click a figure to read who
+          it is. Click a floor to enter the hall. The row along the bottom names every hall, and
+          0 frames the whole block.
+        </p>
+        <p class="about-p">
+          Ai2 and Kimi are the first rooms of two quarters the building is growing into, an
+          open-source quarter and an Asian quarter. The unfinished frame on Kimi's outer wall is
+          where the next room attaches. A sidewalk with trees and lamps runs around the outside.
+        </p>
+        <p class="about-p">
+          The picture is drawn by a software rasteriser into a small buffer, reduced to a handful
+          of inks, and scaled up with the pixels left square. Drag to look, scroll to zoom, and
+          turn the building with Q and E. Any panel can be folded away. Press \ when you want the
+          drawing on its own.
+        </p>
+      </div>
+    </div>
+
+    <div id="gate" role="dialog" aria-labelledby="gate-title">
+      <div class="gate-card">
+        <p class="kicker">A cutaway</p>
+        <h1 id="gate-title">Frontier Halls</h1>
+        <p class="gate-lead">Ten halls around one court, drawn in a handful of inks and running on one clock.</p>
+        <button type="button" id="gate-enter" class="gate-enter">Enter the Frontier Halls</button>
+        <div class="gate-row">
+          <button type="button" id="gate-settings">Settings</button>
+          <button type="button" id="gate-about">What is this?</button>
+        </div>
       </div>
     </div>
 

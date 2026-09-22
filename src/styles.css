@@ -74,6 +74,7 @@ html, body {
   left: var(--gap);
   top: 16px;
   max-width: 24rem;
+  padding-right: 48px;
   pointer-events: none;
   z-index: 4;
   isolation: isolate;
@@ -261,6 +262,8 @@ input[type="range"]::-moz-range-thumb {
   font-style: italic;
 }
 
+.card-head { padding-right: 46px; }
+
 .card-nav {
   display: flex;
   align-items: center;
@@ -306,12 +309,13 @@ button {
   position: fixed;
   isolation: isolate;
   left: var(--gap);
-  bottom: 12px;
+  /* Sits on its own row, above the toolbar, so every hall name stays readable. */
+  bottom: 58px;
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
   gap: 4px 5px;
-  max-width: calc(100vw - 250px);
+  max-width: calc(100vw - 40px);
   z-index: 4;
 }
 
@@ -395,9 +399,16 @@ button {
 #map-wrap {
   position: fixed;
   left: var(--gap);
-  bottom: 96px;
+  bottom: 120px;
   z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
   pointer-events: auto;
+}
+#map-wrap .fold {
+  position: static;
+  margin: 0 0 4px;
 }
 
 #minimap {
@@ -643,21 +654,180 @@ button {
 }
 .stats[hidden] { display: none; }
 
+/* --------------------------------------------------------- folding chrome */
+
+.fold, .fold-tab {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  pointer-events: auto;
+}
+.fold {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  padding: 5px 6px;
+}
+.fold:hover, .fold-tab:hover { color: var(--ink); }
+.fold-tab {
+  display: none;
+  padding: 7px 10px;
+  background: var(--panel);
+  border: 1px solid var(--panel-line);
+  color: var(--ink-soft);
+}
+
+#dock .fold, #tools .fold { position: static; }
+/* The dock's buttons are flex items, which would otherwise show a hidden tab. */
+#dock .fold-tab, #tools .fold-tab { position: static; display: none; }
+body.fold-dock #dock .fold-tab,
+body.fold-tools #tools .fold-tab { display: inline-block; }
+
+body.fold-hud #hud > :not(.fold-tab),
+body.fold-dossier #dossier > :not(.fold-tab),
+body.fold-dock #dock > :not(.fold-tab),
+body.fold-map #map-wrap > :not(.fold-tab),
+body.fold-tools #tools > :not(.fold-tab) { display: none !important; }
+
+body.fold-hud #hud::before,
+body.fold-dock #dock::before { content: none; }
+
+body.fold-hud #hud .fold-tab,
+body.fold-dossier #dossier .fold-tab,
+body.fold-dock #dock .fold-tab,
+body.fold-map #map-wrap .fold-tab,
+body.fold-tools #tools .fold-tab { display: inline-block; }
+
+body.fold-hud #hud {
+  padding-right: 0;
+  pointer-events: auto;
+}
+body.fold-dossier #dossier {
+  width: auto;
+  max-height: none;
+  padding: 0;
+  overflow: visible;
+  background: transparent;
+  border-top: 0;
+  box-shadow: none;
+}
+body.fold-dock #dock { max-width: none; }
+body.fold-map #map-wrap { pointer-events: auto; }
+body.fold-tools #tools {
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+
+body.at-gate #hud,
+body.at-gate #dossier,
+body.at-gate #dock,
+body.at-gate #tools,
+body.at-gate #map-wrap { display: none; }
+
+/* ------------------------------------------------------------------- gate */
+
+#gate {
+  position: fixed;
+  inset: 0;
+  z-index: 16;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0 20px calc(28px + env(safe-area-inset-bottom));
+  pointer-events: none;
+}
+#gate[hidden] { display: none; }
+
+.gate-card {
+  pointer-events: auto;
+  width: min(460px, 100%);
+  padding: 20px 24px 18px;
+  background: var(--panel);
+  border-top: 2px solid var(--accent);
+  box-shadow: var(--shadow);
+}
+
+#gate-title {
+  margin: 4px 0 0;
+  font-size: 44px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.gate-lead {
+  margin: 12px 0 0;
+  max-width: 36em;
+  color: var(--ink-soft);
+  font-size: 17px;
+  line-height: 1.4;
+  font-style: italic;
+}
+
+.gate-enter {
+  display: block;
+  width: 100%;
+  margin-top: 18px;
+  padding: 12px 16px;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 16.5px;
+}
+.gate-enter:hover { background: transparent; color: var(--ink); }
+
+.gate-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.gate-row button {
+  flex: 1;
+  padding: 9px 12px;
+  border: 1px solid var(--ink);
+  font-size: 14.5px;
+}
+.gate-row button:hover { background: var(--ink); color: var(--paper); }
+
+.about-p {
+  margin: 12px 0 0;
+  font-size: 15.5px;
+  line-height: 1.5;
+}
+.about-p:first-of-type { margin-top: 0; }
+
 /* ------------------------------------------------------------- narrow */
 
 @media (max-width: 900px) {
   :root { --gap: 12px; }
   #dossier {
     top: auto;
-    bottom: 56px;
+    bottom: 128px;
     right: 12px;
     width: calc(100vw - 24px);
-    max-height: 42vh;
+    max-height: 38vh;
   }
   #dock { max-width: calc(100vw - 24px); bottom: 10px; }
   #map-wrap { display: none; }
   .clock { font-size: 30px; }
-  #tools { bottom: auto; top: 12px; right: 12px; }
+  /* The toolbar wraps onto its own row above the halls, clear of the clock. */
+  #tools {
+    top: auto;
+    bottom: 56px;
+    left: 12px;
+    right: 12px;
+    max-width: none;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  body.fold-dossier #dossier { top: 12px; bottom: auto; }
+  body.fold-tools #tools { left: auto; bottom: 56px; }
+  #gate-title { font-size: 36px; }
+  .gate-lead { font-size: 15.5px; }
   #hud { max-width: calc(100vw - 150px); }
   .timeline { width: 100%; }
 }

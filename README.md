@@ -52,6 +52,7 @@ occlude. Turning the view with `Q` and `E` swaps which is which.
 | `Ctrl`+`K`, `/` | find a model, a hall or a command |
 | `S` | settings — ink, pixel size, dither, bloom, detail |
 | `F` | save a picture |
+| `\` | hide or show every panel |
 | `Esc` | back out one step |
 
 ## How it is put together

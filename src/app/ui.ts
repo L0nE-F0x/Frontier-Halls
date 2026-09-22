@@ -26,6 +26,7 @@ export type UiHooks = {
   settingsChanged(key: keyof Settings): void;
   resetSettings(): void;
   screenshot(): void;
+  layoutChanged(): void;
 };
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
@@ -43,8 +44,13 @@ const KEYS: [string, string][] = [
   ["Ctrl K, /", "Find anything"],
   ["S", "Settings"],
   ["F", "Save a picture"],
+  ["\\", "Hide or show every panel"],
   ["Esc", "Back out one step"],
 ];
+
+const PANELS = ["hud", "dossier", "dock", "map", "tools"] as const;
+type Panel = (typeof PANELS)[number];
+const CHROME_KEY = "frontier-halls/chrome/1";
 
 type FinderRow = {
   kind: string;
@@ -66,6 +72,9 @@ export class Ui {
   private finderList = $("finder-list");
   private settingsPanel = $("settings-panel");
   private helpPanel = $("help-panel");
+  private aboutPanel = $("about-panel");
+  private gate = $("gate");
+  private folded = new Set<Panel>();
   private minimap = $<HTMLCanvasElement>("minimap");
   private mapCtx = this.minimap.getContext("2d")!;
   private mapNote = $("map-note");
@@ -89,6 +98,39 @@ export class Ui {
     this.wireFinder();
     this.wireTimeline();
     this.wireMinimap();
+    this.wireChrome();
+    this.wireGate();
+    document.body.classList.add("at-gate");
+    this.restoreFolds();
+  }
+
+  get atGate(): boolean {
+    return !this.gate.hidden;
+  }
+
+  /** Which panels are currently on screen. The camera inset reads this. */
+  chrome(): Record<Panel, boolean> {
+    return {
+      hud: !this.folded.has("hud"),
+      dossier: !this.folded.has("dossier"),
+      dock: !this.folded.has("dock"),
+      map: !this.folded.has("map"),
+      tools: !this.folded.has("tools"),
+    };
+  }
+
+  enter(): void {
+    if (this.gate.hidden) return;
+    this.closeSheets();
+    this.gate.hidden = true;
+    document.body.classList.remove("at-gate");
+    this.hooks.layoutChanged();
+  }
+
+  toggleAllChrome(): void {
+    const anyOpen = PANELS.some((panel) => !this.folded.has(panel));
+    this.folded = anyOpen ? new Set(PANELS) : new Set();
+    this.writeFolds(true);
   }
 
   setPeople(people: Person[]): void {
@@ -120,6 +162,18 @@ export class Ui {
 
   private buildDock(): void {
     this.dock.replaceChildren();
+    const hide = document.createElement("button");
+    hide.type = "button";
+    hide.className = "fold";
+    hide.dataset.fold = "dock";
+    hide.title = "Hide the halls";
+    hide.textContent = "Hide";
+    const tab = document.createElement("button");
+    tab.type = "button";
+    tab.className = "fold-tab";
+    tab.dataset.fold = "dock";
+    tab.title = "Show the halls";
+    tab.textContent = "Halls";
     const row = document.createElement("div");
     row.className = "dock-halls";
     for (const hall of halls) {
@@ -138,7 +192,6 @@ export class Ui {
       button.addEventListener("click", () => this.hooks.goHall(hall.id));
       row.append(button);
     }
-    this.dock.append(row);
     const all = document.createElement("button");
     all.type = "button";
     all.dataset.hall = "";
@@ -149,7 +202,7 @@ export class Ui {
     name.textContent = "Whole block";
     all.append(key, name);
     all.addEventListener("click", () => this.hooks.goOverview());
-    this.dock.append(all);
+    this.dock.append(hide, tab, row, all);
   }
 
   private buildKeys(): void {
@@ -177,11 +230,12 @@ export class Ui {
         case "search": this.openFinder(); break;
         case "settings": this.toggleSheet(this.settingsPanel); break;
         case "help": this.toggleSheet(this.helpPanel); break;
+        case "fold": this.toggleAllChrome(); break;
       }
     });
     $("d-prev").addEventListener("click", () => this.hooks.stepPerson(-1));
     $("d-next").addEventListener("click", () => this.hooks.stepPerson(1));
-    for (const sheet of [this.finder, this.settingsPanel, this.helpPanel]) {
+    for (const sheet of [this.finder, this.settingsPanel, this.helpPanel, this.aboutPanel]) {
       sheet.addEventListener("pointerdown", (event) => {
         if (event.target === sheet) sheet.hidden = true;
       });
@@ -260,7 +314,8 @@ export class Ui {
   }
 
   markDock(hallId: string | null): void {
-    for (const button of this.dock.querySelectorAll("button")) {
+    for (const button of this.dock.querySelectorAll<HTMLButtonElement>("button")) {
+      if (!("hall" in button.dataset)) continue;
       const id = button.dataset.hall ?? "";
       button.setAttribute("aria-current", id === (hallId ?? "") ? "true" : "false");
     }
@@ -352,8 +407,10 @@ export class Ui {
       { kind: "Clock", label: "Go to first light", meta: "06:20", run: () => this.hooks.setMinutes(380) },
       { kind: "Clock", label: "Go to midday", meta: "12:40", run: () => this.hooks.setMinutes(760) },
       { kind: "Clock", label: "Go to night watch", meta: "02:30", run: () => this.hooks.setMinutes(150) },
+      { kind: "Page", label: "What is this?", meta: "The building, explained", run: () => this.toggleSheet(this.aboutPanel) },
       { kind: "Page", label: "Settings", meta: "S", run: () => this.toggleSheet(this.settingsPanel) },
       { kind: "Page", label: "Keys", meta: "?", run: () => this.toggleSheet(this.helpPanel) },
+      { kind: "View", label: "Fold the panels", meta: "\\", run: () => { this.closeSheets(); this.toggleAllChrome(); } },
       { kind: "Page", label: "Save a picture", meta: "F", run: () => this.hooks.screenshot() },
     );
     for (const palette of PALETTES) {
@@ -399,8 +456,7 @@ export class Ui {
   }
 
   openFinder(): void {
-    this.settingsPanel.hidden = true;
-    this.helpPanel.hidden = true;
+    this.closeSheets();
     this.finder.hidden = false;
     this.finderInput.value = "";
     this.runFinder();
@@ -516,22 +572,22 @@ export class Ui {
 
   toggleSheet(sheet: HTMLElement): void {
     const open = sheet.hidden;
-    this.finder.hidden = true;
-    this.settingsPanel.hidden = true;
-    this.helpPanel.hidden = true;
+    this.closeSheets();
     sheet.hidden = !open;
   }
 
   closeSheets(): boolean {
-    const any = !this.finder.hidden || !this.settingsPanel.hidden || !this.helpPanel.hidden;
-    this.finder.hidden = true;
-    this.settingsPanel.hidden = true;
-    this.helpPanel.hidden = true;
+    const any = this.sheets().some((sheet) => !sheet.hidden);
+    for (const sheet of this.sheets()) sheet.hidden = true;
     return any;
   }
 
+  private sheets(): HTMLElement[] {
+    return [this.finder, this.settingsPanel, this.helpPanel, this.aboutPanel];
+  }
+
   get sheetOpen(): boolean {
-    return !this.finder.hidden || !this.settingsPanel.hidden || !this.helpPanel.hidden;
+    return this.sheets().some((sheet) => !sheet.hidden);
   }
 
   get settingsSheet(): HTMLElement {
@@ -540,6 +596,58 @@ export class Ui {
 
   get helpSheet(): HTMLElement {
     return this.helpPanel;
+  }
+
+  get aboutSheet(): HTMLElement {
+    return this.aboutPanel;
+  }
+
+  private wireChrome(): void {
+    document.body.addEventListener("click", (event) => {
+      const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-fold]");
+      if (!button?.dataset.fold) return;
+      const panel = button.dataset.fold;
+      if (!PANELS.includes(panel as Panel)) return;
+      this.toggleFold(panel as Panel);
+    });
+  }
+
+  private wireGate(): void {
+    $("gate-enter").addEventListener("click", () => this.enter());
+    $("gate-settings").addEventListener("click", () => this.toggleSheet(this.settingsPanel));
+    $("gate-about").addEventListener("click", () => this.toggleSheet(this.aboutPanel));
+  }
+
+  private toggleFold(panel: Panel): void {
+    if (this.folded.has(panel)) this.folded.delete(panel);
+    else this.folded.add(panel);
+    this.writeFolds(true);
+  }
+
+  private restoreFolds(): void {
+    try {
+      const raw = localStorage.getItem(CHROME_KEY);
+      const saved = raw ? JSON.parse(raw) as unknown : [];
+      const names = Array.isArray(saved)
+        ? saved.filter((id): id is Panel => typeof id === "string" && (PANELS as readonly string[]).includes(id))
+        : [];
+      this.folded = new Set(names);
+    } catch {
+      this.folded = new Set();
+    }
+    this.writeFolds(false);
+  }
+
+  private writeFolds(refit: boolean): void {
+    for (const panel of PANELS) {
+      document.body.classList.toggle(`fold-${panel}`, this.folded.has(panel));
+    }
+    try {
+      localStorage.setItem(CHROME_KEY, JSON.stringify([...this.folded]));
+    } catch {
+      /* private mode. The choice lasts for this visit. */
+    }
+    if (refit) this.hooks.layoutChanged();
   }
 
   /* ------------------------------------------------------------ minimap */
