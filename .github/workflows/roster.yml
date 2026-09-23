@@ -1,58 +1,81 @@
-# Checks the halls against a live model index once a week and opens a pull
-# request when a seat has moved on. It never pushes to main: the rooms carry
-# hand-written copy, and a name changing usually means a line of it should too.
+# Keeps the halls staffed with the current models, with nobody in the loop.
+#
+# Every six hours it reads the live model index, moves any seat whose lab has
+# shipped a successor, and pushes the change straight to main once it
+# typechecks, passes the tests and builds. Netlify deploys main, so a new
+# model is standing in its hall within a few hours of being listed.
+#
+# It only pushes when a seat actually moved, so a quiet day leaves no trace in
+# the history. Everything that could make it wrong makes it stop instead, and
+# a stopped run fails loudly, which GitHub emails about:
+#
+#   - the index is unreachable, suspiciously small, or has stopped changing;
+#   - more seats moved at once than a release day explains (rerun this by hand
+#     with "force" ticked once you have read the moves in the log);
+#   - the moved roster does not typecheck, test or build.
+#
+# It used to open a pull request instead. That needed a person to merge it,
+# and the repository does not let Actions open pull requests anyway.
 name: Roster
 
 on:
   schedule:
-    # Monday morning, UTC.
-    - cron: "17 7 * * 1"
+    - cron: "23 */6 * * *"
   workflow_dispatch:
+    inputs:
+      force:
+        description: Apply the moves even past the circuit breaker
+        type: boolean
+        default: false
 
 permissions:
   contents: write
-  pull-requests: write
+
+# Two runs racing each other to push the same move would only make noise.
+concurrency:
+  group: roster
+  cancel-in-progress: false
 
 jobs:
-  check:
+  refresh:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           cache: npm
       - run: npm ci
 
-      # Always readable in the run log, whether or not anything changed.
-      - name: Read the index
-        id: report
+      - name: Move the seats
+        run: npm run --silent roster -- --write --commit-message="$RUNNER_TEMP/roster-commit.txt" ${{ inputs.force && '--force' || '' }}
+
+      - name: Did anything move?
+        id: moved
         run: |
-          set -o pipefail
-          npm run --silent roster -- --write 2>&1 | tee roster-report.txt || true
-          {
-            echo 'body<<REPORT'
-            cat roster-report.txt
-            echo REPORT
-          } >> "$GITHUB_OUTPUT"
-          rm roster-report.txt
+          if git diff --quiet -- src/world/roster.ts; then
+            echo "roster=no" >> "$GITHUB_OUTPUT"
+          else
+            echo "roster=yes" >> "$GITHUB_OUTPUT"
+            git diff -- src/world/roster.ts
+          fi
 
       - name: Check it still builds
-        run: npm run check
+        if: steps.moved.outputs.roster == 'yes'
+        run: |
+          npm run check
+          npm run build
 
-      - uses: peter-evans/create-pull-request@v6
-        with:
-          branch: roster/refresh
-          title: "Roster: a seat has moved on"
-          commit-message: "Refresh the roster from the model index."
-          body: |
-            Opened by the weekly roster check.
-
-            ```
-            ${{ steps.report.outputs.body }}
-            ```
-
-            The seats below moved on their own. Anything listed as *shipped,
-            and nobody is standing in it* needs a seat and a line of copy in
-            `src/world/halls/`, which this job will not write.
-          labels: roster
+      - name: Ship it
+        if: steps.moved.outputs.roster == 'yes'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/world/roster.ts
+          git commit --file "$RUNNER_TEMP/roster-commit.txt"
+          # Somebody may have pushed while this ran. The roster is its own
+          # file, so replaying the one commit on top is safe; a conflict fails
+          # the run rather than guessing.
+          git pull --rebase origin main
+          git push origin HEAD:main

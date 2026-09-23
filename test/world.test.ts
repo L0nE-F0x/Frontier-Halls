@@ -268,6 +268,20 @@ describe("the roster", () => {
     }
   });
 
+  it("makes no claim about a moving seat that its next occupant would falsify", () => {
+    // Seats with a rule change hands on their own. "The newest arrival" was
+    // true of GPT-6 Astra for eighteen days and then wrong on the live site.
+    const dated = /\b(newest|latest|just (shipped|released|arrived))\b/i;
+    for (const hall of halls) {
+      for (const person of hall.people) {
+        if (ROSTER[`${hall.id}/${person.id}`]?.source !== "openrouter") continue;
+        for (const field of ["role", "doing", "why"] as const) {
+          expect(person[field], `${hall.id}/${person.id}.${field}`).not.toMatch(dated);
+        }
+      }
+    }
+  });
+
   it("lists the hall's cast in the fact that promises it", () => {
     for (const hall of halls) {
       const roster = hall.facts.find((f) => f.label === "In the hall");

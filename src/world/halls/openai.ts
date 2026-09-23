@@ -40,10 +40,10 @@ export const openai: HallSpec = {
     {
       id: "flagship",
       name: "GPT-6 Astra",
-      role: "The newest arrival",
+      role: "Top of the line",
       tier: "Flagship",
       doing: "Stays at the lamp with one long problem.",
-      why: "{short} is the newest thing the hall has, and the top of the line. The deep work is gathered in the one warm pool of light.",
+      why: "{short} is the top of the line. The deep work is gathered in the one warm pool of light.",
       chips: ["Flagship", "Reasoning", "Multimodal"],
       accent: AMBER,
       scale: 1.05,

@@ -177,26 +177,51 @@ why: "{short} is the fast, high-volume model. The short trips belong to it.",
 
 ### Keeping it current
 
+Nobody has to. `.github/workflows/roster.yml` runs every six hours, reads
+[OpenRouter's public model index][or], moves any seat whose lab has shipped a
+successor, and — once the move typechecks, passes the tests and builds — pushes
+it straight to `main`, which Netlify deploys. Claude Opus 5.5 was listed on
+2026-09-22; under the old weekly pull request it would still be waiting for
+somebody to merge it. Each move is its own commit, so the history reads as a
+log of arrivals, and undoing one is a `git revert`.
+
 ```
-npm run roster            what has changed, and what has nobody in it
-npm run roster -- --write apply the seat moves
+npm run roster            what would move, and what has nobody in it
+npm run roster -- --write apply the moves
 ```
 
-The script reads [OpenRouter's public model index][or] and does two things.
-It refreshes the seats it has a rule for — *anthropic/opus is whatever
-`anthropic/claude-opus-*` is newest* — and, more usefully, it reports anything
-a lab has shipped that nobody in the building is standing in. That second check
-is the one that matters: GPT-6 Astra landed on 2026-09-04 and was not in the
-OpenAI hall until somebody happened to notice.
+The deciding lives in `scripts/roster-core.mjs` and is tested against a fixed
+index in `test/roster.test.mjs`. Because nobody reads its output before it goes
+live, it leans towards holding still:
 
-It never edits a hall file, and it will not invent copy. A new model needs a
-seat and a sentence, and both are hand work.
+- **A seat keeps its tier.** OpenAI shipped GPT-6 Sol and GPT-6 Luna on the same
+  day, and "newest wins" would have put Luna, the $0.10 tier, in the flagship
+  seat. A successor has to cost within 4× of the model it replaces (8× where a
+  seat has its own family pattern), so Astra stays the flagship, Sol takes
+  Terra's seat and Luna takes Luna's.
+- **A seat only moves forward**, to something released after its current
+  model — even when that model has been delisted.
+- **No model sits in two seats**, and batch tiers, aliases, dated reissues,
+  future dates and retired models are never candidates.
+- **It stops rather than guesses.** An unreachable, tiny or stalled index, or
+  more than six moves in one run, fails the workflow without writing, and
+  GitHub emails about a failed run. Rerun it from the Actions tab with *force*
+  ticked once the moves in the log look right.
 
-Some seats have no rule and say so — `openai/balanced` against `openai/fast` is
-a judgement the index cannot make, and Ai2 is not listed on OpenRouter at all.
-Those carry `source: "hand"` and are only as current as the last person to look.
+Each seat records the model's index id, so it is tracked exactly rather than by
+name, and the date it last changed hands. A quiet run changes nothing, so a
+quiet day leaves no commit.
 
-`.github/workflows/roster.yml` runs the check weekly and opens a pull request
-when a seat has moved. It does not push to main.
+It never edits a hall file, and it will not invent copy. That is why copy names
+its occupant with a token and never calls it "the newest": the next occupant
+would make that false, and a test now refuses it. The report still lists
+anything a lab has shipped that nobody is standing in, but nothing has to
+happen about it — a new *line* of models gets a figure only if somebody gives
+it a seat and a sentence.
+
+Some seats have no rule and say so. Grok Voice and Imagine, Gemini Robotics,
+the previous Kimi and the small open models are judgements the index cannot
+make, and Ai2 is not listed on OpenRouter at all. Those carry `source: "hand"`
+and are only as current as the last person to look.
 
 [or]: https://openrouter.ai/api/v1/models
