@@ -6,7 +6,12 @@
     <meta name="color-scheme" content="light dark" />
     <title>Frontier Halls</title>
     <style>
-      /* Covers the drawing before the stylesheet arrives, and stays opaque. */
+      /*
+       * Covers everything before the stylesheet arrives. Once it has, the cover
+       * sheet turns transparent and the drawing shows through its plate, so the
+       * body starts out at the gate: without that the app's own chrome would
+       * show for the moment between the stylesheet and the script.
+       */
       #gate { position: fixed; inset: 0; z-index: 16; background: #d6d2cc; }
     </style>
     <meta
@@ -41,7 +46,7 @@
     <meta name="twitter:image" content="https://frontier-halls.netlify.app/og.png" />
     <meta name="twitter:image:alt" content="Frontier Halls, an isometric cutaway of ten labs as one building." />
   </head>
-  <body>
+  <body class="at-gate">
     <canvas id="view" aria-label="Isometric cutaway of the frontier halls"></canvas>
 
     <header id="hud">
@@ -215,24 +220,94 @@
       </div>
     </div>
 
-    <div id="gate" role="dialog" aria-labelledby="gate-title">
-      <div class="gate-page">
-        <svg class="gate-mark" viewBox="0 0 32 32" aria-hidden="true">
-          <polygon points="16,3.5 29,10 16,16.5 3,10" fill="var(--ink)" />
-          <polygon points="3,11.4 16,17.9 16,29 3,22.5" fill="var(--ink-soft)" />
-          <polygon points="16,17.9 29,11.4 29,22.5 16,29" fill="color-mix(in srgb, var(--ink) 28%, var(--paper))" />
-          <rect x="15.15" y="6.4" width="1.7" height="5.4" fill="var(--accent)" />
-        </svg>
-        <p class="kicker">A cutaway</p>
-        <h1 id="gate-title">Frontier Halls</h1>
-        <p class="gate-lead">Ten halls around one court, drawn in a handful of inks and running on one clock.</p>
-        <button type="button" id="gate-enter" class="gate-enter">Enter the Frontier Halls</button>
-        <div class="gate-row">
-          <button type="button" id="gate-settings">Settings</button>
-          <button type="button" id="gate-about">What is this?</button>
+    <!--
+      The front door is the cover sheet of a drawing set. It has no paper of its
+      own: the sheet is ruled and lettered over the live drawing, and the plate
+      in the middle is a hole the building is framed into. Entering takes the
+      sheet away and lets the camera walk out of the plate into the app.
+    -->
+    <div id="gate" role="dialog" aria-labelledby="gate-title" aria-describedby="gate-lead">
+      <div class="gate-sheet">
+        <header class="gate-head">
+          <p class="gate-brand">
+            <svg class="gate-mark" viewBox="0 0 32 32" aria-hidden="true">
+              <polygon points="16,3.5 29,10 16,16.5 3,10" fill="var(--ink)" />
+              <polygon points="3,11.4 16,17.9 16,29 3,22.5" fill="var(--ink-soft)" />
+              <polygon points="16,17.9 29,11.4 29,22.5 16,29" fill="color-mix(in srgb, var(--ink) 28%, var(--paper))" />
+            </svg>
+            <span>Frontier Halls</span>
+          </p>
+          <p class="gate-time">
+            <span id="gate-clock" class="gate-clock">09:10</span>
+            <span id="gate-phase" class="gate-phase">Morning run</span>
+            <span id="gate-note" class="gate-note">Deep work. Everyone is at a station.</span>
+          </p>
+          <p class="gate-sheetno">Sheet <b>00</b> <span>Cover</span></p>
+        </header>
+
+        <div class="gate-body">
+          <section class="gate-title-block">
+            <div class="gate-words">
+              <p class="kicker">A cutaway, drawn live</p>
+              <h1 id="gate-title">Frontier <em>Halls</em></h1>
+              <p id="gate-lead" class="gate-lead">
+                <span data-fill="halls-word">Ten</span> frontier labs drawn as one building, around one court
+                and running on one clock. The figures are models, and each one keeps its own hours.
+              </p>
+            </div>
+            <div class="gate-actions">
+              <div class="gate-notes">
+                <h2 class="gate-label">Notes</h2>
+                <ol>
+                  <li class="gate-pointer-only">Point at a hall, in the schedule or on the plate, to light it up.</li>
+                  <li>Choose one, or press its key, to go straight in.</li>
+                  <li>Turn the building with Q and E, or the arrows under the plate.</li>
+                </ol>
+              </div>
+              <button type="button" id="gate-enter" class="gate-enter">
+                <span id="gate-enter-label">Enter the halls</span>
+                <kbd aria-hidden="true">&crarr;</kbd>
+              </button>
+              <p class="gate-links">
+                <button type="button" id="gate-about">What is this?</button>
+                <button type="button" id="gate-settings">Settings <kbd aria-hidden="true">S</kbd></button>
+              </p>
+            </div>
+          </section>
+
+          <figure class="gate-plate">
+            <div id="gate-frame" class="gate-frame"></div>
+            <figcaption class="gate-caption">
+              <span class="gate-plate-no">Plate I</span>
+              <span id="gate-view" class="gate-view">The block, from the south-east</span>
+              <span class="gate-turn">
+                <button type="button" data-turn="-1" title="Turn the building left (Q)" aria-label="Turn left">
+                  <kbd>Q</kbd>&#8630;
+                </button>
+                <button type="button" data-turn="1" title="Turn the building right (E)" aria-label="Turn right">
+                  &#8631;<kbd>E</kbd>
+                </button>
+              </span>
+            </figcaption>
+          </figure>
+
+          <nav class="gate-index" aria-labelledby="gate-index-title">
+            <h2 id="gate-index-title" class="gate-label">Schedule of halls</h2>
+            <ol id="gate-halls" class="gate-halls"></ol>
+            <button type="button" id="gate-inks" class="gate-inks" title="Change the ink">
+              <span class="gate-label">Ink</span>
+              <span id="gate-ink-name" class="gate-ink-name">Foolscap</span>
+              <span id="gate-ink-chips" class="gate-ink-chips" aria-hidden="true"></span>
+              <span id="gate-ink-note" class="gate-ink-note"></span>
+            </button>
+          </nav>
         </div>
+
+        <footer class="gate-foot">
+          <dl id="gate-facts" class="gate-facts"></dl>
+          <p class="gate-drawn">Drawn September 2026</p>
+        </footer>
       </div>
-      <p class="gate-foot">One building · September 2026</p>
     </div>
 
     <p id="stats" class="stats" hidden></p>

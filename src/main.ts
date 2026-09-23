@@ -1,3 +1,7 @@
+import "@fontsource-variable/newsreader/wght.css";
+import "@fontsource-variable/newsreader/wght-italic.css";
+import "@fontsource/instrument-serif/400.css";
+import "@fontsource/instrument-serif/400-italic.css";
 import "./styles.css";
 
 import { clamp01 } from "./engine/color";
@@ -11,7 +15,7 @@ import { depthOf, screenX, screenY, unrotX, unrotY } from "./engine/project";
 import { textCells, worldText } from "./engine/text";
 import { Rig } from "./app/camera";
 import { clearSettings, DEFAULTS, loadSettings, saveSettings, type Settings } from "./app/settings";
-import { Ui, type Selection } from "./app/ui";
+import { LOOKING_FROM, Ui, type Selection } from "./app/ui";
 import {
   buildBlock, collectLamps, halls, hallById, hallOrigin, hallPoints, layoutNav, personPoints, washFor, blockPoints,
 } from "./world/building";
@@ -41,6 +45,11 @@ const crowd = new Crowd(nav);
 /* ------------------------------------------------------------------- state */
 
 let selection: Selection = { kind: "overview" };
+/**
+ * Where a link into the building asked to go. A link still comes in through
+ * the front door: its hall is lit on the plate, and the door opens onto it.
+ */
+let arrival: Selection | null = null;
 let hoveredPerson: Person | null = null;
 let hoveredHall: string | null = null;
 let time = 0;
@@ -55,7 +64,8 @@ const hooks = {
   stepPerson: (delta: number) => cyclePerson(delta),
   rotate: (delta: number) => {
     const yaw = rig.rotate(delta);
-    ui.toast(`Looking from the ${["south-east", "south-west", "north-west", "north-east"][yaw]}`);
+    ui.noteView(yaw);
+    if (!ui.atGate) ui.toast(`Looking from the ${LOOKING_FROM[yaw]}`);
   },
   zoom: (factor: number) => rig.zoomCentre(factor),
   togglePause: () => {
@@ -80,12 +90,30 @@ const hooks = {
     rig.refit(false);
     ui.markDockScroll();
   },
+  // The camera is handed the app's framing while it is still looking into the
+  // plate, and eases out of it: that walk is the whole of the transition.
+  arrive: (target: Selection | null) => {
+    const next = target ?? arrival ?? { kind: "overview" };
+    arrival = null;
+    hoveredHall = null;
+    go(next);
+  },
+  peekHall: (hallId: string | null) => {
+    hoveredHall = hallId;
+    ui.peek(hallId);
+  },
+  plateMoved: () => {
+    if (!ui.atGate) return;
+    rig.insets = insets();
+    rig.refit(true);
+  },
 };
 
+// Materials first: the dock and the schedule take their swatches from them.
+retune(palette);
 const ui = new Ui(hooks, settings, clock);
 ui.setPeople(crowd.people);
 ui.applyPalette(palette);
-retune(palette);
 
 /* ---------------------------------------------------------------- settings */
 
@@ -117,12 +145,16 @@ function insets() {
   const overview = selection.kind === "overview";
   const open = ui.chrome();
   if (ui.atGate) {
-    const bottom = Math.min(window.innerHeight * 0.48, wide ? 320 : 360);
+    // Whatever is left of the window around the cover sheet's plate, so the
+    // camera frames the block inside it. Measured in buffer pixels exactly,
+    // because here the drawing has to sit on marks the page has ruled.
+    const plate = ui.plateRect();
+    const k = raster.w / Math.max(1, window.innerWidth);
     return {
-      top: 36 / scale,
-      right: 28 / scale,
-      bottom: bottom / scale,
-      left: 28 / scale,
+      top: plate.top * k,
+      right: (window.innerWidth - plate.right) * k,
+      bottom: (window.innerHeight - plate.bottom) * k,
+      left: plate.left * k,
     };
   }
   const top = open.hud ? (overview ? 86 : 124) : 22;
@@ -235,6 +267,12 @@ function showPerson(hallId: string, personId: string, immediate = false): void {
   afterSelect();
 }
 
+function go(target: Selection, immediate = false): void {
+  if (target.kind === "person") showPerson(target.hallId, target.personId, immediate);
+  else if (target.kind === "hall") showHall(target.hallId, immediate);
+  else showOverview(immediate);
+}
+
 function cyclePerson(delta: number): void {
   const hall = hallById(currentHallId());
   const list = hall ? hall.people.map((p) => crowd.at(hall.id, p.id)!).filter(Boolean) : crowd.people;
@@ -261,6 +299,9 @@ function renderCard(): void {
 }
 
 function writeHash(): void {
+  // The cover always frames the whole block, and must not wipe out the hall a
+  // link asked for before the door has been opened onto it.
+  if (ui.atGate) return;
   const hash =
     selection.kind === "person"
       ? `#${selection.hallId}/${selection.personId}`
@@ -270,14 +311,33 @@ function writeHash(): void {
   if (location.hash !== hash) history.replaceState(null, "", hash || location.pathname);
 }
 
-function readHash(): void {
+function hashTarget(): Selection {
   const [hallId, personId] = location.hash.replace("#", "").split("/");
-  if (hallId && hallById(hallId)) {
-    if (personId && crowd.at(hallId, personId)) showPerson(hallId, personId, true);
-    else showHall(hallId, true);
+  if (!hallId || !hallById(hallId)) return { kind: "overview" };
+  if (personId && crowd.at(hallId, personId)) return { kind: "person", hallId, personId };
+  return { kind: "hall", hallId };
+}
+
+function readHash(): void {
+  const target = hashTarget();
+  if (!ui.atGate) return go(target, true);
+  if (target.kind === "overview") {
+    arrival = null;
+    ui.setArrival(null, null);
   } else {
-    showOverview(true);
+    arrival = target;
+    const name = target.kind === "person"
+      ? crowd.at(target.hallId, target.personId)?.name
+      : hallById(target.hallId)?.name;
+    ui.setArrival(name ?? null, target.hallId);
   }
+  showOverview(true);
+}
+
+/** The hall the cover lights: the one being pointed at, else the one a link named. */
+function gateFocus(): string | null {
+  if (hoveredHall) return hoveredHall;
+  return arrival && arrival.kind !== "overview" ? arrival.hallId : null;
 }
 
 /* ------------------------------------------------------------------- input */
@@ -314,7 +374,7 @@ view.addEventListener("pointermove", (event) => {
   if (pinch.size === 2) {
     const [a, b] = [...pinch.values()];
     const dist = Math.hypot(a.x - b.x, a.y - b.y);
-    if (pinchDist > 0) rig.zoomAt(dist / pinchDist, raster.w / 2, raster.h / 2);
+    if (pinchDist > 0 && !ui.atGate) rig.zoomAt(dist / pinchDist, raster.w / 2, raster.h / 2);
     pinchDist = dist;
     return;
   }
@@ -326,7 +386,8 @@ view.addEventListener("pointermove", (event) => {
   const dx = at.x - pointer.x;
   const dy = at.y - pointer.y;
   if (dx * dx + dy * dy > 6) pointer.moved = true;
-  rig.pan(dx, dy);
+  // The plate is framed to the sheet's marks; at the gate it is only pointed at.
+  if (!ui.atGate) rig.pan(dx, dy);
   pointer.x = at.x;
   pointer.y = at.y;
 });
@@ -339,7 +400,7 @@ function endPointer(event: PointerEvent): void {
   if (!pointer.moved) {
     const at = toBuffer(event);
     click(at.x, at.y);
-  } else {
+  } else if (!ui.atGate) {
     rig.release();
   }
   pointer = null;
@@ -350,11 +411,14 @@ view.addEventListener("pointercancel", endPointer);
 view.addEventListener("pointerleave", () => {
   ui.hideTooltip();
   hoveredPerson = null;
+  // Onto the sheet. If that is a row of the schedule, it lights its own hall.
+  if (ui.atGate) hooks.peekHall(null);
 });
 
 view.addEventListener(
   "wheel",
   (event) => {
+    if (ui.atGate) return;
     event.preventDefault();
     const at = toBuffer(event);
     const step = event.deltaMode === 1 ? event.deltaY * 16 : event.deltaY;
@@ -364,6 +428,7 @@ view.addEventListener(
 );
 
 view.addEventListener("dblclick", (event) => {
+  if (ui.atGate) return;
   const at = toBuffer(event);
   const id = raster.idAt(at.x, at.y);
   if (id >= 1000) showHall(halls[id - 1000]?.id ?? halls[0].id);
@@ -375,6 +440,7 @@ function updateHover(bx: number, by: number, clientX: number, clientY: number): 
   hoveredPerson = person;
   hoveredHall = id >= 1000 ? halls[id - 1000]?.id ?? null : person?.hallId ?? null;
   view.classList.toggle("pointing", Boolean(person) || id >= 1000);
+  if (ui.atGate) ui.peek(hoveredHall);
   // Hovering already raises a plate in the drawing, at the thing itself. The
   // tooltip is the fallback for when the plates are switched off.
   if (settings.labels) {
@@ -393,9 +459,16 @@ function updateHover(bx: number, by: number, clientX: number, clientY: number): 
 }
 
 function click(bx: number, by: number): void {
-  if (ui.atGate) return;
   const id = raster.idAt(bx, by);
   const person = crowd.byPickId.get(id);
+  if (ui.atGate) {
+    // Anything in the plate is a door: a figure opens onto that figure, a
+    // floor onto its hall.
+    const hall = id >= 1000 ? halls[id - 1000] : undefined;
+    if (person) ui.enter({ kind: "person", hallId: person.hallId, personId: person.id });
+    else if (hall) ui.enter({ kind: "hall", hallId: hall.id });
+    return;
+  }
   if (person) {
     showPerson(person.hallId, person.id);
     return;
@@ -435,25 +508,27 @@ window.addEventListener("keydown", (event) => {
     ui.openFinder();
     return;
   }
+  const pressed = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+  const hall = halls.find((h) => h.key === pressed);
   if (ui.atGate) {
-    if (event.key === "Enter" && !ui.sheetOpen && !(event.target instanceof HTMLButtonElement)) {
+    // The keys the schedule prints beside each hall open the door onto it.
+    // There is no zoom here: the plate is framed to marks on the sheet.
+    if (ui.sheetOpen) {
+      if (pressed === "s") ui.toggleSheet(ui.settingsSheet);
+    } else if (event.key === "Enter" && !(event.target instanceof HTMLButtonElement)) {
       event.preventDefault();
       ui.enter();
-    } else if (event.key === "s" || event.key === "S") {
+    } else if (hall && !event.metaKey && !event.ctrlKey && !event.altKey) {
+      ui.enter({ kind: "hall", hallId: hall.id });
+    } else if (pressed === "s") {
       ui.toggleSheet(ui.settingsSheet);
-    } else if (event.key === "q" || event.key === "Q") {
+    } else if (pressed === "q") {
       hooks.rotate(-1);
-    } else if (event.key === "e" || event.key === "E") {
+    } else if (pressed === "e") {
       hooks.rotate(1);
-    } else if (event.key === "+" || event.key === "=") {
-      rig.zoomCentre(1.3);
-    } else if (event.key === "-" || event.key === "_") {
-      rig.zoomCentre(1 / 1.3);
     }
     return;
   }
-  const pressed = event.key.length === 1 ? event.key.toLowerCase() : event.key;
-  const hall = halls.find((h) => h.key === pressed);
   if (hall) return showHall(hall.id);
   switch (event.key) {
     case "0": showOverview(); break;
@@ -630,7 +705,9 @@ function render(dt: number): void {
     shadowX: -(sky.sunDir.x / sunDown) * 0.42,
     shadowY: -(sky.sunDir.y / sunDown) * 0.42,
     shadowStrength: 0.22 + sky.daylight * 0.2 + lampMix * 0.22,
-    focus: currentHallId(),
+    // At the gate the hall named on the sheet is lit and the rest of the
+    // block is washed back, the same wash a hall gets when it is entered.
+    focus: ui.atGate ? gateFocus() : currentHallId(),
   };
 
   const page = backdrop(ink, sky.daylight);
@@ -769,7 +846,8 @@ function drawLabels(selected: Person | undefined): void {
         label(item.plaque, o.x + RW / 2, o.y + RD * 0.5, 8.6, fit(planCell(item.plaque)), MAT.ink);
       }
     }
-    const over = hallById(hoveredHall);
+    // On the cover, a hall a link named keeps its plate up too.
+    const over = hallById(ui.atGate ? gateFocus() : hoveredHall);
     if (over) {
       const o = hallOrigin(over);
       labelPlate(over.name, o.x + RW / 2, o.y + RD * 0.5, 8.8, fit(planCell(over.name)));

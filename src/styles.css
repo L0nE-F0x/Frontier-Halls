@@ -14,7 +14,12 @@
   --panel: rgba(214, 210, 204, 0.94);
   --panel-line: rgba(32, 30, 36, 0.16);
   --shadow: 0 1px 0 rgba(32, 30, 36, 0.12);
-  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+  /*
+   * Both faces ship with the page. The stack used to start at Iowan Old Style,
+   * which only a Mac has, and everywhere else it fell through to a Times clone.
+   */
+  --serif: "Newsreader Variable", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --display: "Instrument Serif", "Newsreader Variable", Georgia, serif;
   --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Fira Code", Menlo, Consolas, monospace;
   --gap: 20px;
 }
@@ -837,100 +842,744 @@ body.at-gate #tools,
 body.at-gate #map-wrap,
 body.at-gate #stats,
 body.at-gate #toasts,
-body.at-gate #tooltip,
-body.at-gate #view { visibility: hidden; }
+body.at-gate #tooltip { visibility: hidden; }
+
+/* At the gate the drawing is a plate to point at, not a floor to drag. */
+body.at-gate #view { cursor: default; }
+body.at-gate #view.pointing { cursor: pointer; }
 
 /* ------------------------------------------------------------------- gate */
 
-/* A title page. Opaque on purpose: the building is the thing you enter, not the backdrop. */
+/*
+ * The cover sheet of the set. It has no paper of its own: the canvas is the
+ * paper, and it is perfectly flat everywhere the building is not, because the
+ * page is an exact ink. So the sheet is only rules and lettering, and the
+ * plate in the middle is simply the one place the camera frames the block.
+ *
+ * Only what is lettered on the sheet takes the pointer. The plate lets it
+ * through to the drawing, which is how a hall under the cursor lights up.
+ */
 #gate {
   position: fixed;
   inset: 0;
   z-index: 16;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-end;
-  padding: 36px 28px calc(28px + env(safe-area-inset-bottom));
-  /* !important so this beats the foolscap cover in the document head once the palette is known. */
-  background: var(--paper) !important;
+  /* !important to beat the cover in the document head. */
+  background: transparent !important;
   color: var(--ink);
   overflow: auto;
+  overscroll-behavior: contain;
+  pointer-events: none;
+  scrollbar-width: none;
 }
+#gate::-webkit-scrollbar { display: none; }
 #gate[hidden] { display: none; }
 
-#gate::before {
+.gate-sheet {
+  position: relative;
+  min-height: 100%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+}
+
+/* The trim line. */
+.gate-sheet::before {
   content: "";
   position: absolute;
-  inset: 16px;
+  inset: 16px 16px calc(16px + env(safe-area-inset-bottom));
   border: 1px solid var(--panel-line);
   pointer-events: none;
 }
 
-.gate-page {
-  width: min(26rem, 100%);
-  margin: auto;
-  padding: 12px 0 8px;
+.gate-label,
+.gate-head,
+.gate-caption,
+.gate-facts dt,
+.gate-drawn {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 400;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.gate-sheet kbd {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  padding: 3px 5px 2px;
+  border: 1px solid currentColor;
+  opacity: 0.62;
+}
+
+/* ------------------------------------------------------------ gate: head */
+
+.gate-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 20px;
+  padding: 11px 22px;
+  border-bottom: 1px solid var(--panel-line);
+  pointer-events: auto;
+}
+.gate-head p { margin: 0; }
+
+.gate-brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  color: var(--ink);
 }
 
 .gate-mark {
   display: block;
-  width: 92px;
-  height: 92px;
-  margin: 0 0 26px;
+  width: 30px;
+  height: 22px;
+  flex: none;
+}
+
+.gate-time {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 12px;
+  white-space: nowrap;
+}
+
+.gate-clock {
+  font-family: var(--serif);
+  font-size: 19px;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--ink);
+}
+
+.gate-phase { color: var(--accent); }
+
+.gate-note {
+  font-family: var(--serif);
+  font-size: 13.5px;
+  font-style: italic;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.gate-sheetno { text-align: right; }
+.gate-sheetno b {
+  font-weight: 400;
+  color: var(--ink);
+  margin: 0 3px;
+}
+
+/* ------------------------------------------------------------ gate: body */
+
+.gate-body {
+  display: grid;
+  grid-template-columns: clamp(330px, 26vw, 460px) minmax(0, 1fr) clamp(362px, 25vw, 410px);
+  grid-template-areas: "title plate index";
+  min-height: 0;
+}
+
+.gate-title-block {
+  grid-area: title;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 32px;
+  padding: 30px 30px 28px;
+  pointer-events: auto;
 }
 
 #gate-title {
-  margin: 8px 0 0;
-  font-size: clamp(48px, 9vw, 72px);
-  font-weight: 500;
-  line-height: 0.96;
-  letter-spacing: -0.03em;
+  margin: 14px 0 0;
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: clamp(64px, 7.9vw, 148px);
+  line-height: 0.84;
+  letter-spacing: -0.015em;
+}
+#gate-title em {
+  display: block;
+  font-style: italic;
+  /* Italic leans out of its box; this sets it back on the same left edge. */
+  margin-left: -0.02em;
 }
 
 .gate-lead {
-  margin: 16px 0 0;
-  max-width: 22em;
+  margin: 22px 0 0;
+  max-width: 25em;
   color: var(--ink-soft);
-  font-size: 18px;
-  line-height: 1.4;
-  font-style: italic;
+  font-size: 16.5px;
+  line-height: 1.5;
+}
+
+/* General notes, the way a sheet carries them: numbered, short, ruled off. */
+.gate-notes {
+  margin-bottom: 22px;
+  padding-top: 12px;
+  border-top: 1px solid var(--panel-line);
+}
+.gate-notes h2 { margin: 0 0 8px; }
+.gate-notes ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: note;
+}
+.gate-notes li {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  margin-top: 5px;
+  font-size: 14px;
+  line-height: 1.42;
+  color: var(--ink-soft);
+  counter-increment: note;
+}
+.gate-notes li::before {
+  content: counter(note) ".";
+  font-family: var(--mono);
+  font-size: 10.5px;
+  line-height: 1.95;
+  color: var(--accent);
+}
+/* Nothing to point with on a touch screen. */
+@media (hover: none) {
+  .gate-pointer-only { display: none !important; }
 }
 
 .gate-enter {
-  display: block;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   width: 100%;
-  margin-top: 28px;
-  padding: 13px 16px;
+  padding: 15px 18px 15px 20px;
   border: 1px solid var(--ink);
   background: var(--ink);
   color: var(--paper);
+  font-size: 18px;
+  text-align: left;
+}
+.gate-enter span { transition: transform 240ms cubic-bezier(0.2, 0.7, 0.2, 1); }
+.gate-enter kbd { opacity: 0.72; }
+
+/*
+ * The lamp. A bar of the accent runs in under the label on hover, the one ink
+ * that is allowed to be warm. It moves by transform only; the inks themselves
+ * are never transitioned (see the note at the top).
+ */
+.gate-enter::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--accent);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 320ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.gate-enter:hover::after,
+.gate-enter:focus-visible::after { transform: scaleX(1); }
+.gate-enter:hover span,
+.gate-enter:focus-visible span { transform: translateX(4px); }
+
+.gate-sheet button:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.gate-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  margin: 14px 0 0;
+}
+.gate-links button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 15px;
+  color: var(--ink-soft);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-decoration-color: var(--panel-line);
+  text-underline-offset: 5px;
+}
+.gate-links button:hover { color: var(--ink); text-decoration-color: var(--accent); }
+
+/* ----------------------------------------------------------- gate: plate */
+
+.gate-plate {
+  grid-area: plate;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 26px 14px 16px;
+}
+
+/*
+ * The region the camera frames the block into, marked at its corners the way
+ * a plate is marked for trimming. The rest of it is the drawing.
+ */
+.gate-frame {
+  --tick: 14px;
+  --mark: color-mix(in srgb, var(--ink) 42%, transparent);
+  flex: 1;
+  min-height: 200px;
+  background:
+    linear-gradient(var(--mark), var(--mark)) left top / var(--tick) 1px,
+    linear-gradient(var(--mark), var(--mark)) left top / 1px var(--tick),
+    linear-gradient(var(--mark), var(--mark)) right top / var(--tick) 1px,
+    linear-gradient(var(--mark), var(--mark)) right top / 1px var(--tick),
+    linear-gradient(var(--mark), var(--mark)) left bottom / var(--tick) 1px,
+    linear-gradient(var(--mark), var(--mark)) left bottom / 1px var(--tick),
+    linear-gradient(var(--mark), var(--mark)) right bottom / var(--tick) 1px,
+    linear-gradient(var(--mark), var(--mark)) right bottom / 1px var(--tick);
+  background-repeat: no-repeat;
+}
+
+.gate-caption {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  margin-top: 14px;
+  padding: 9px 2px 0;
+  border-top: 1px solid var(--panel-line);
+  pointer-events: auto;
+}
+.gate-plate-no { color: var(--ink); flex: none; }
+.gate-view {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--serif);
+  font-size: 14.5px;
+  font-style: italic;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.gate-view b { font-weight: 500; font-style: normal; color: var(--ink); }
+
+.gate-turn { display: flex; gap: 4px; flex: none; }
+.gate-turn button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 2px 6px;
+  font-size: 15px;
+  color: var(--ink-soft);
+}
+.gate-turn button:hover { color: var(--ink); }
+.gate-turn kbd { font-size: 9.5px; }
+
+/* ----------------------------------------------------------- gate: index */
+
+.gate-index {
+  grid-area: index;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 30px 24px 22px;
+  border-left: 1px solid var(--panel-line);
+  pointer-events: auto;
+}
+.gate-index h2 { margin: 0; }
+
+.gate-halls {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  border-top: 1px solid var(--panel-line);
+}
+.gate-halls li { border-bottom: 1px solid color-mix(in srgb, var(--ink) 9%, transparent); }
+
+.gate-halls button {
+  display: grid;
+  grid-template-columns: 14px 8px auto minmax(8px, 1fr) auto;
+  align-items: baseline;
+  column-gap: 8px;
+  width: 100%;
+  padding: 7px 8px 7px 6px;
+  text-align: left;
+  color: var(--ink);
+}
+.gate-halls .k {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+}
+.gate-halls .swatch {
+  width: 8px;
+  height: 8px;
+  align-self: center;
+}
+.gate-halls .n {
+  font-size: 15.5px;
+  white-space: nowrap;
+}
+.gate-halls .leader {
+  align-self: end;
+  margin-bottom: 0.42em;
+  border-bottom: 1px dotted color-mix(in srgb, var(--ink) 30%, transparent);
+}
+.gate-halls .t {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-style: italic;
+  color: var(--ink-soft);
+}
+.gate-halls .q {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-style: normal;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-right: 6px;
+}
+
+.gate-halls button:hover,
+.gate-halls button.peek {
+  background: var(--paper-2);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.gate-halls button:hover .k,
+.gate-halls button.peek .k { color: var(--accent); }
+
+.gate-inks {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "label chips"
+    "name  chips"
+    "note  note";
+  align-items: center;
+  gap: 2px 14px;
+  margin-top: auto;
+  padding: 16px 6px 2px;
+  text-align: left;
+  color: var(--ink);
+}
+.gate-inks .gate-label { grid-area: label; }
+.gate-ink-name {
+  grid-area: name;
   font-size: 17px;
 }
-.gate-enter:hover { background: transparent; color: var(--ink); }
-
-.gate-row {
-  display: flex;
-  gap: 8px;
-  margin-top: 8px;
-}
-.gate-row button {
-  flex: 1;
-  padding: 10px 12px;
-  border: 1px solid var(--ink);
-  font-size: 15px;
-}
-.gate-row button:hover { background: var(--ink); color: var(--paper); }
-
-.gate-foot {
-  position: relative;
-  z-index: 1;
-  margin: 28px 0 0;
+.gate-ink-name::after {
+  content: "  \2192  next";
   font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.16em;
+  font-size: 10px;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--ink-soft);
+  opacity: 0;
+}
+.gate-inks:hover .gate-ink-name::after,
+.gate-inks:focus-visible .gate-ink-name::after { opacity: 1; }
+
+.gate-ink-chips {
+  grid-area: chips;
+  display: flex;
+  gap: 3px;
+}
+.gate-ink-chips i {
+  display: block;
+  width: 11px;
+  height: 11px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 14%, transparent);
+}
+/* The ramp, then the accents a pixel may only reach by being that colour. */
+.gate-ink-chips i.first-accent { margin-left: 7px; }
+
+.gate-ink-note {
+  grid-area: note;
+  margin-top: 7px;
+  font-size: 13.5px;
+  line-height: 1.4;
+  font-style: italic;
+  color: var(--ink-soft);
+}
+
+/* ------------------------------------------------------------ gate: foot */
+
+.gate-foot {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  border-top: 1px solid var(--panel-line);
+  pointer-events: auto;
+}
+
+.gate-facts {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0;
+}
+.gate-facts div {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 10px 22px;
+  border-right: 1px solid var(--panel-line);
+}
+.gate-facts dd {
+  margin: 0;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.gate-drawn {
+  margin: 0;
+  align-self: center;
+  padding: 10px 22px;
+}
+
+/* ------------------------------------------------------- gate: in and out */
+
+/*
+ * The sheet is lettered in once its type has arrived, so nothing reflows while
+ * it is being read, and the drawing fades up inside the plate a beat after.
+ */
+#gate .gate-head,
+#gate .gate-title-block,
+#gate .gate-plate,
+#gate .gate-index,
+#gate .gate-foot,
+#gate .gate-sheet::before { opacity: 0; }
+
+body.at-gate #view { opacity: 0; }
+#view { transition: opacity 900ms cubic-bezier(0.2, 0.7, 0.2, 1) 180ms; }
+body.gate-ready #view { opacity: 1; }
+
+body.gate-ready #gate .gate-sheet::before { animation: gate-trim 900ms cubic-bezier(0.6, 0, 0.2, 1) both; }
+body.gate-ready #gate .gate-head { animation: gate-in 700ms cubic-bezier(0.2, 0.7, 0.2, 1) 120ms both; }
+body.gate-ready #gate .gate-title-block { animation: gate-in 800ms cubic-bezier(0.2, 0.7, 0.2, 1) 200ms both; }
+body.gate-ready #gate .gate-plate { animation: gate-plate-in 1000ms cubic-bezier(0.2, 0.7, 0.2, 1) 260ms both; }
+body.gate-ready #gate .gate-index { animation: gate-in 800ms cubic-bezier(0.2, 0.7, 0.2, 1) 320ms both; }
+body.gate-ready #gate .gate-foot { animation: gate-in 700ms cubic-bezier(0.2, 0.7, 0.2, 1) 400ms both; }
+
+@keyframes gate-trim {
+  from { opacity: 1; clip-path: inset(0 100% 100% 0); }
+  to { opacity: 1; clip-path: inset(0 0 0 0); }
+}
+@keyframes gate-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes gate-plate-in {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+
+/*
+ * Going in. The sheet parts around the plate, and the camera, which has just
+ * been handed the app's framing, walks the building out of it.
+ */
+body.gate-leaving #gate,
+body.gate-leaving #gate * { pointer-events: none !important; }
+
+body.gate-leaving #gate .gate-sheet::before { animation: gate-fade 380ms ease-in both; }
+body.gate-leaving #gate .gate-head { animation: gate-out-up 420ms cubic-bezier(0.5, 0, 0.7, 0.4) both; }
+body.gate-leaving #gate .gate-foot { animation: gate-out-down 420ms cubic-bezier(0.5, 0, 0.7, 0.4) both; }
+body.gate-leaving #gate .gate-title-block { animation: gate-out-left 440ms cubic-bezier(0.5, 0, 0.7, 0.4) both; }
+body.gate-leaving #gate .gate-index { animation: gate-out-right 440ms cubic-bezier(0.5, 0, 0.7, 0.4) both; }
+body.gate-leaving #gate .gate-plate { animation: gate-out-open 460ms cubic-bezier(0.5, 0, 0.7, 0.4) both; }
+
+@keyframes gate-fade { from { opacity: 1; } to { opacity: 0; } }
+@keyframes gate-out-up { from { opacity: 1; } to { opacity: 0; transform: translateY(-14px); } }
+@keyframes gate-out-down { from { opacity: 1; } to { opacity: 0; transform: translateY(14px); } }
+@keyframes gate-out-left { from { opacity: 1; } to { opacity: 0; transform: translateX(-22px); } }
+@keyframes gate-out-right { from { opacity: 1; } to { opacity: 0; transform: translateX(22px); } }
+@keyframes gate-out-open { from { opacity: 1; } to { opacity: 0; transform: scale(1.06); } }
+
+/* The app's own chrome, arriving after the sheet has gone. */
+body.arriving #hud { animation: chrome-in 620ms cubic-bezier(0.2, 0.7, 0.2, 1) 220ms both; }
+body.arriving #dossier { animation: chrome-in 620ms cubic-bezier(0.2, 0.7, 0.2, 1) 300ms both; }
+body.arriving #map-wrap { animation: chrome-in 620ms cubic-bezier(0.2, 0.7, 0.2, 1) 360ms both; }
+body.arriving #dock { animation: chrome-in 620ms cubic-bezier(0.2, 0.7, 0.2, 1) 400ms both; }
+body.arriving #tools { animation: chrome-in 620ms cubic-bezier(0.2, 0.7, 0.2, 1) 440ms both; }
+
+@keyframes chrome-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ------------------------------------------------------- gate: narrower */
+
+/* Two columns: the schedule goes under the plate as a grid of doors. */
+@media (max-width: 1180px) {
+  .gate-body {
+    grid-template-columns: clamp(300px, 36vw, 420px) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "title plate"
+      "title index";
+  }
+  .gate-index {
+    border-left: 0;
+    padding: 0 14px 16px;
+  }
+  .gate-index h2 { display: none; }
+  .gate-halls {
+    display: grid;
+    grid-template-columns: repeat(5, auto);
+    justify-content: space-between;
+    margin: 0;
+    border-top: 0;
+  }
+  .gate-halls li { border-bottom: 0; }
+  .gate-halls button {
+    grid-template-columns: auto auto minmax(0, 1fr);
+    padding: 6px 6px;
+  }
+  .gate-halls .n {
+    font-size: 14.5px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .gate-halls .leader,
+  .gate-halls .t { display: none; }
+  .gate-inks {
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
+    grid-template-areas: "label name note chips";
+    gap: 14px;
+    margin-top: 10px;
+    padding: 10px 6px 0;
+    border-top: 1px solid var(--panel-line);
+  }
+  .gate-ink-note {
+    margin: 0;
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .gate-note { display: none; }
+}
+
+/*
+ * A short window: the same sheet, set tighter, and below a point the notes
+ * give way. They repeat what the schedule and the caption already offer, and
+ * the door matters more than instructions for finding it.
+ */
+@media (max-height: 780px) and (min-width: 761px) {
+  #gate-title { font-size: clamp(56px, min(7.9vw, 14vh), 148px); }
+  .gate-title-block { gap: 20px; padding-top: 24px; padding-bottom: 22px; }
+  .gate-lead { margin-top: 16px; font-size: 15.5px; }
+  .gate-notes { margin-bottom: 16px; padding-top: 10px; }
+  .gate-notes li { font-size: 13.5px; margin-top: 3px; }
+  .gate-index { padding-top: 24px; }
+  .gate-halls button { padding-top: 5px; padding-bottom: 5px; }
+  .gate-enter { padding-top: 12px; padding-bottom: 12px; }
+  .gate-facts div, .gate-drawn { padding-top: 8px; padding-bottom: 8px; }
+}
+@media (max-height: 690px) and (min-width: 761px) {
+  .gate-notes { display: none; }
+}
+@media (max-height: 640px) and (min-width: 1181px) {
+  .gate-ink-note { display: none; }
+}
+
+/*
+ * One column, in reading order: the name, the plate, the door, the halls.
+ *
+ * The plate prints full bleed. At the default pixel size a phone's width is
+ * about what the whole block needs at the camera's closest-in limit, so any
+ * margin would only push the sidewalk over the trim; the side trim goes and
+ * the drawing runs to the edges of the sheet instead.
+ */
+@media (max-width: 760px) {
+  .gate-sheet { padding: 0 0 env(safe-area-inset-bottom); }
+  .gate-sheet::before { display: none; }
+  .gate-head {
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 12px 18px;
+  }
+  .gate-sheetno { display: none; }
+  .gate-time { justify-content: flex-end; }
+  .gate-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+    grid-template-areas:
+      "words"
+      "plate"
+      "actions"
+      "index";
+  }
+  .gate-title-block { display: contents; }
+  .gate-words { grid-area: words; padding: 22px 18px 0; }
+  .gate-actions { grid-area: actions; padding: 4px 18px 18px; }
+  #gate-title { font-size: clamp(52px, 15vw, 76px); }
+  .gate-lead { margin-top: 14px; font-size: 15.5px; }
+  .gate-plate { padding: 12px 0 10px; }
+  .gate-frame {
+    flex: none;
+    height: clamp(200px, min(64vw, 44svh), 380px);
+    min-height: 0;
+    background: none;
+  }
+  .gate-caption { margin: 10px 18px 0; }
+  .gate-actions { display: flex; flex-direction: column; }
+  .gate-notes { order: 3; margin: 22px 0 0; }
+  .gate-turn kbd { display: none; }
+  .gate-links kbd { display: none; }
+  .gate-index { padding: 0 18px 14px; }
+  .gate-halls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    justify-content: stretch;
+    border-top: 1px solid var(--panel-line);
+  }
+  .gate-halls li { border-bottom: 1px solid color-mix(in srgb, var(--ink) 9%, transparent); }
+  .gate-halls button { padding: 9px 6px; }
+  .gate-inks {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "label name chips"
+      "note  note note";
+    gap: 6px 12px;
+  }
+  .gate-ink-note { white-space: normal; }
+  .gate-foot { flex-direction: column; }
+  .gate-facts div {
+    flex: 1 1 50%;
+    padding: 8px 18px;
+    border-bottom: 1px solid var(--panel-line);
+  }
+  .gate-drawn { align-self: flex-start; padding: 10px 18px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #gate .gate-head,
+  #gate .gate-title-block,
+  #gate .gate-plate,
+  #gate .gate-index,
+  #gate .gate-foot,
+  #gate .gate-sheet::before { opacity: 1; animation: none !important; }
+  body.at-gate #view { opacity: 1; }
+  #view { transition: none; }
+  body.arriving #hud,
+  body.arriving #dossier,
+  body.arriving #map-wrap,
+  body.arriving #dock,
+  body.arriving #tools { animation: none; }
+  .gate-enter span,
+  .gate-enter::after { transition: none; }
 }
 
 .about-p {
@@ -970,12 +1619,6 @@ body.at-gate #view { visibility: hidden; }
   }
   body.fold-dossier #dossier { top: 12px; bottom: auto; }
   body.fold-tools #tools { left: auto; bottom: calc(54px + var(--safe)); }
-  #gate { padding: 24px 20px calc(20px + env(safe-area-inset-bottom)); }
-  #gate::before { inset: 10px; }
-  .gate-mark { width: 72px; height: 72px; margin-bottom: 18px; }
-  #gate-title { font-size: 46px; }
-  .gate-lead { font-size: 16px; }
-  .gate-foot { letter-spacing: 0.12em; }
   #hud { max-width: calc(100vw - 150px); }
   .timeline { width: 100%; }
 }

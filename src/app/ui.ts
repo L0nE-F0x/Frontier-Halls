@@ -27,7 +27,16 @@ export type UiHooks = {
   resetSettings(): void;
   screenshot(): void;
   layoutChanged(): void;
+  /** Through the front door, to wherever was asked for — or wherever a link named. */
+  arrive(target: Selection | null): void;
+  /** A hall named on the cover sheet, to be lit on the plate. Null puts the lights back. */
+  peekHall(hallId: string | null): void;
+  /** The plate moved or changed size, so the block has to be framed into it again. */
+  plateMoved(): void;
 };
+
+/** Which way the camera looks, by yaw. The sheet's caption and the toast both say it. */
+export const LOOKING_FROM = ["south-east", "south-west", "north-west", "north-east"] as const;
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 
@@ -74,6 +83,16 @@ export class Ui {
   private helpPanel = $("help-panel");
   private aboutPanel = $("about-panel");
   private gate = $("gate");
+  private gateFrame = $("gate-frame");
+  private gateClock = $("gate-clock");
+  private gatePhase = $("gate-phase");
+  private gateNote = $("gate-note");
+  private gateView = $("gate-view");
+  private entered = false;
+  /** The hall lit on the plate, from the schedule or from the drawing itself. */
+  private peeked: string | null = null;
+  private arrivalHall: string | null = null;
+  private lookingFrom: string = LOOKING_FROM[0];
   private folded = new Set<Panel>();
   private minimap = $<HTMLCanvasElement>("minimap");
   private mapCtx = this.minimap.getContext("2d")!;
@@ -112,8 +131,18 @@ export class Ui {
     this.restoreFolds();
   }
 
+  /**
+   * True until the door is opened. That is the moment it flips, not the moment
+   * the sheet finishes leaving: the camera takes the app's framing at once and
+   * walks the block out of the plate while the sheet is still fading.
+   */
   get atGate(): boolean {
-    return !this.gate.hidden;
+    return !this.entered;
+  }
+
+  /** Where the camera frames the block while the cover sheet is up. */
+  plateRect(): DOMRect {
+    return this.gateFrame.getBoundingClientRect();
   }
 
   /** Which panels are currently on screen. The camera inset reads this. */
@@ -127,12 +156,72 @@ export class Ui {
     };
   }
 
-  enter(): void {
-    if (this.gate.hidden) return;
+  enter(target: Selection | null = null): void {
+    if (this.entered) return;
+    this.entered = true;
     this.closeSheets();
-    this.gate.hidden = true;
-    document.body.classList.remove("at-gate");
-    this.hooks.layoutChanged();
+    this.peeked = null;
+    const body = document.body;
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    body.classList.remove("at-gate");
+    if (!still) body.classList.add("gate-leaving", "arriving");
+    this.hooks.arrive(target);
+    const shut = () => {
+      this.gate.hidden = true;
+      body.classList.remove("gate-leaving");
+    };
+    if (still) {
+      shut();
+      return;
+    }
+    // Timers rather than animationend: a backgrounded tab never finishes an
+    // animation, and the gate must not be left standing over the app.
+    setTimeout(shut, 480);
+    setTimeout(() => body.classList.remove("arriving"), 1300);
+  }
+
+  /**
+   * What the door opens onto, when a link asked for somewhere in particular.
+   * Its hall stays lit on the sheet whenever nothing else is being pointed at.
+   */
+  setArrival(name: string | null, hallId: string | null): void {
+    $("gate-enter-label").textContent = name ? `Enter at ${name}` : "Enter the halls";
+    this.arrivalHall = hallId;
+    this.markPeek();
+  }
+
+  /** Lights a hall in the schedule and names it under the plate. */
+  peek(hallId: string | null): void {
+    if (hallId === this.peeked) return;
+    this.peeked = hallId;
+    this.markPeek();
+  }
+
+  private markPeek(): void {
+    const lit = this.peeked ?? this.arrivalHall;
+    for (const button of $("gate-halls").querySelectorAll<HTMLButtonElement>("button[data-hall]")) {
+      button.classList.toggle("peek", button.dataset.hall === lit);
+    }
+    this.writeCaption();
+  }
+
+  noteView(yaw: number): void {
+    this.lookingFrom = LOOKING_FROM[yaw] ?? LOOKING_FROM[0];
+    this.writeCaption();
+    if (this.atGate) this.announce(`Looking from the ${this.lookingFrom}`);
+  }
+
+  private writeCaption(): void {
+    const lit = this.peeked ?? this.arrivalHall;
+    const hall = halls.find((h) => h.id === lit);
+    if (!hall) {
+      this.gateView.textContent = `The block, from the ${this.lookingFrom}`;
+      return;
+    }
+    const name = document.createElement("b");
+    name.textContent = hall.name;
+    const tagline = hall.tagline.charAt(0).toLowerCase() + hall.tagline.slice(1);
+    this.gateView.replaceChildren(name, `, ${tagline}`);
   }
 
   toggleAllChrome(): void {
@@ -157,6 +246,7 @@ export class Ui {
     this.applyPage(palette, palette.ramp[palette.pageTop]);
     this.buildDock();
     this.drawGateMark();
+    this.buildGate(palette);
   }
 
   /**
@@ -487,6 +577,13 @@ export class Ui {
       pause.textContent = paused ? "Run" : "Pause";
       pause.setAttribute("aria-pressed", paused ? "true" : "false");
     }
+    if (this.atGate) {
+      // The cover keeps the building's time too. Written only on change, since
+      // this runs every frame and the header is centred on it.
+      write(this.gateClock, this.clock.hhmm());
+      write(this.gatePhase, paused ? "Held" : phase.name);
+      write(this.gateNote, phase.note);
+    }
   }
 
   private wireTimeline(): void {
@@ -786,6 +883,119 @@ export class Ui {
     $("gate-enter").addEventListener("click", () => this.enter());
     $("gate-settings").addEventListener("click", () => this.toggleSheet(this.settingsPanel));
     $("gate-about").addEventListener("click", () => this.toggleSheet(this.aboutPanel));
+    $("gate-inks").addEventListener("click", () => this.nextInk());
+    for (const button of this.gate.querySelectorAll<HTMLButtonElement>("[data-turn]")) {
+      button.addEventListener("click", () => this.hooks.rotate(Number(button.dataset.turn)));
+    }
+
+    // The schedule doubles as a row of doors. Pointing at one lights its hall
+    // on the plate; the gaps between rows are ignored rather than read as
+    // leaving, so running down the list does not flicker the whole block.
+    const list = $("gate-halls");
+    const rowOf = (event: Event) =>
+      (event.target as HTMLElement).closest<HTMLButtonElement>("button[data-hall]")?.dataset.hall;
+    list.addEventListener("click", (event) => {
+      const hallId = rowOf(event);
+      if (hallId) this.enter({ kind: "hall", hallId });
+    });
+    list.addEventListener("pointerover", (event) => {
+      const hallId = rowOf(event);
+      if (hallId) this.hooks.peekHall(hallId);
+    });
+    list.addEventListener("focusin", (event) => this.hooks.peekHall(rowOf(event) ?? null));
+    list.addEventListener("pointerleave", () => this.hooks.peekHall(null));
+    list.addEventListener("focusout", () => this.hooks.peekHall(null));
+
+    // The camera frames the block into the plate, so wherever the plate goes
+    // the framing follows: a resize, the type arriving, the sheet scrolling on
+    // a short screen.
+    this.gate.addEventListener("scroll", () => this.hooks.plateMoved(), { passive: true });
+    new ResizeObserver(() => this.hooks.plateMoved()).observe(this.gateFrame);
+
+    // Letter the sheet in once its faces are here. Waiting on them means the
+    // title never jumps from a fallback face to its own under the reader; the
+    // timeout means a slow or blocked font never holds the door shut.
+    const faces = [
+      '400 100px "Instrument Serif"',
+      'italic 400 100px "Instrument Serif"',
+      '400 16px "Newsreader Variable"',
+      'italic 400 16px "Newsreader Variable"',
+    ];
+    const loaded = "fonts" in document
+      ? Promise.all(faces.map((face) => document.fonts.load(face)))
+      : Promise.resolve();
+    const patience = new Promise((resolve) => setTimeout(resolve, 1400));
+    Promise.race([loaded, patience])
+      .catch(() => undefined)
+      .then(() =>
+        requestAnimationFrame(() => {
+          this.hooks.plateMoved();
+          document.body.classList.add("gate-ready");
+        }),
+      );
+  }
+
+  private nextInk(): void {
+    const at = PALETTES.findIndex((p) => p.id === this.settings.palette);
+    this.settings.palette = PALETTES[(at + 1) % PALETTES.length].id;
+    this.hooks.settingsChanged("palette");
+    this.syncSettings();
+  }
+
+  /**
+   * The cover sheet's schedule, key and title block. Built from the same hall
+   * list as everything else, and rebuilt when the ink changes, because the
+   * swatches are the palette's own accents.
+   */
+  private buildGate(palette: Palette): void {
+    const list = $("gate-halls");
+    list.replaceChildren();
+    for (const hall of halls) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.hall = hall.id;
+      button.title = `Enter at ${hall.name} (${hall.key.toUpperCase()})`;
+      if (hall.id === (this.peeked ?? this.arrivalHall)) button.classList.add("peek");
+      const swatch = document.createElement("i");
+      swatch.className = "swatch";
+      swatch.style.background = hex(hall.accent);
+      const tagline = span("t", "");
+      if (hall.quarter) tagline.append(span("q", hall.quarter));
+      tagline.append(hall.tagline);
+      button.append(span("k", hall.key.toUpperCase()), swatch, span("n", hall.name), span("leader", ""), tagline);
+      const li = document.createElement("li");
+      li.append(button);
+      list.append(li);
+    }
+
+    $("gate-ink-name").textContent = palette.name;
+    $("gate-ink-note").textContent = palette.note;
+    $("gate-inks").setAttribute("aria-label", `Ink: ${palette.name}. Change to the next ink.`);
+    const chips = $("gate-ink-chips");
+    chips.replaceChildren();
+    [...palette.ramp, ...palette.accents].forEach((ink, i) => {
+      const chip = document.createElement("i");
+      chip.style.background = hex(ink);
+      if (i === palette.ramp.length) chip.className = "first-accent";
+      chips.append(chip);
+    });
+
+    const facts = $("gate-facts");
+    facts.replaceChildren();
+    const fact = (label: string, value: string) => {
+      const cell = document.createElement("div");
+      addFact(cell, label, value);
+      facts.append(cell);
+    };
+    fact("Plan", `${GRID.cols} × ${GRID.rows}, around a court`);
+    fact("Halls", String(halls.length));
+    fact("Figures", String(this.people.length));
+    fact("Inks", String(palette.ramp.length + palette.accents.length));
+
+    const count = inWords(halls.length);
+    for (const el of document.querySelectorAll<HTMLElement>('[data-fill="halls-word"]')) {
+      el.textContent = count.charAt(0).toUpperCase() + count.slice(1);
+    }
   }
 
   private toggleFold(panel: Panel): void {
@@ -1095,6 +1305,28 @@ function addFact(list: HTMLElement, label: string, value: string): void {
   const dd = document.createElement("dd");
   dd.textContent = value;
   list.append(dt, dd);
+}
+
+function span(className: string, text: string): HTMLSpanElement {
+  const el = document.createElement("span");
+  el.className = className;
+  el.textContent = text;
+  return el;
+}
+
+/** Sets text only when it differs, for things rewritten every frame. */
+function write(el: HTMLElement, text: string): void {
+  if (el.textContent !== text) el.textContent = text;
+}
+
+const WORDS = [
+  "no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+  "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty",
+];
+
+/** A count as it is written in prose, which the building will outgrow at twenty-one. */
+function inWords(n: number): string {
+  return WORDS[n] ?? String(n);
 }
 
 function describe(person: Person): string {

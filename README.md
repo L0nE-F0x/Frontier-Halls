@@ -37,11 +37,33 @@ walls follow the camera — the two facing away from you are drawn full height
 with their clerestory, the two facing you are cut to a knee so they never
 occlude. Turning the view with `Q` and `E` swaps which is which.
 
+## The front door
+
+The page opens on the cover sheet of a drawing set: a title block, a schedule
+of halls, a key to the inks, and one plate with the building in it. The plate
+is not a picture. The sheet has no paper of its own and is only rules and
+lettering over the live canvas, and the plate is simply the rectangle the camera
+frames the block into, so the cover keeps the building's time and re-inks with
+it. That only works because the page is an exact ink: everywhere the building
+is not, the canvas is perfectly flat, and the sheet reads as paper.
+
+Pointing at a hall, in the schedule or on the plate, lights it with the same
+wash a hall gets when it is entered. Choosing one, or pressing its key, opens
+the door onto it. A link to a hall or a figure still comes in through the front
+door, with its hall lit and the door opening onto it. Going in hands the camera
+the app's framing while it is still looking into the plate, so the building
+walks out of the plate while the sheet parts around it.
+
+On a phone the plate prints full bleed. At the default pixel size the whole
+block needs about a phone's width at the camera's closest-in limit, so a margin
+would only push the sidewalk over the trim.
+
 ## Keys
 
 | | |
 |---|---|
-| `1`–`9`, `A` | enter a hall (`A` is Ai2) |
+| `Enter` | at the front door, go in |
+| `1`–`9`, `A` | enter a hall (`A` is Ai2); at the front door, go straight to it |
 | `0` | the whole block |
 | click | read a figure; click a floor for its hall |
 | drag, scroll | look and zoom |
