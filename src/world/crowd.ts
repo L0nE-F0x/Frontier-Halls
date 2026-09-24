@@ -1,7 +1,7 @@
 import { mix } from "../engine/color";
 import { hash1 } from "../engine/rng";
 import {
-  allStations, BLOCK_D, BLOCK_W, findStation, halls, hallOrigin, type WorldStation,
+  allStations, BLOCK_D, BLOCK_W, findStation, halls, hallOrigin, roomAt, type WorldStation,
 } from "./building";
 import type { HallSpec, Tag } from "./halls/types";
 import { MAT } from "./materials";
@@ -184,6 +184,8 @@ export class Crowd {
     if (!spots) return -1;
     const mine = spots.indexOf(person.id + "@" + person.hallId);
     if (mine >= 0) return mine;
+    // A line fills from the front, whichever door a figure came in by.
+    if (st.tags.includes("queue")) return spots.findIndex((s) => !s);
     // Take the free spot nearest the figure, so two people sent to a long
     // table do not cross over each other to reach their chairs.
     let best = -1;
@@ -217,7 +219,7 @@ export class Crowd {
     this.held.delete(seatKey(person.hallId, person.id));
   }
 
-  private go(person: Person, st: WorldStation, spot: number): void {
+  private go(person: Person, st: WorldStation, spot: number): boolean {
     const w = st.world[spot];
     const dest: Destination = {
       hallId: st.hallId, station: st.id, spot,
@@ -227,9 +229,11 @@ export class Crowd {
     // No route, no walk: stay put and think again in a moment.
     if (!setGoal(person, this.nav, dest)) {
       person.timer = Math.max(person.timer, 2);
-      return;
+      return false;
     }
     this.claim(person, st, spot);
+    person.queueing = null;
+    return true;
   }
 
   /* ------------------------------------------------------------- update */
@@ -255,6 +259,7 @@ export class Crowd {
       if (person.timer <= 0 && person.activity === "at") this.decide(person, clock);
     }
     if (motion) {
+      this.joinLines();
       this.avoid(dt);
       this.mingle();
     }
@@ -289,6 +294,20 @@ export class Crowd {
     if (person.id === CHECKPOINT) {
       person.timer = 1;
       return;
+    }
+    // Out of the line at the counter, and to the table it came for, or the
+    // nearest one with room if that has filled up meanwhile.
+    if (person.then) {
+      const after = person.then;
+      person.then = null;
+      const tables = this.tagged("meal").filter((st) => st.hallId === after.hallId);
+      tables.sort((a, b) => (a.id === after.station ? -1 : b.id === after.station ? 1 : 0));
+      for (const st of tables) {
+        const spot = this.freeSpot(st, person);
+        if (spot < 0) continue;
+        person.timer = after.dwell;
+        if (this.go(person, st, spot)) return;
+      }
     }
     const options: Option[] = [];
     const offer = (st: WorldStation | undefined, weight: number, dwell: [number, number]) => {
@@ -380,7 +399,32 @@ export class Crowd {
     if (heldNow && heldNow.key === `${choice.st.hallId}/${choice.st.id}`) return;
     const spot = this.freeSpot(choice.st, person);
     if (spot < 0) return;
-    this.go(person, choice.st, spot);
+    if (!this.go(person, choice.st, spot)) return;
+    // A meal in a room with a serving line starts in the line, unless the
+    // figure is already in the room: nobody queues twice for one lunch. The
+    // place in line is taken on coming through the door, in update(), not on
+    // setting off; a line held for people still three rooms away is a line
+    // nobody is standing in.
+    const lined = this.tagged("queue").some((st) => st.hallId === choice.st.hallId);
+    if (lined && choice.st.tags.includes("meal") && heldNow?.key.split("/")[0] !== choice.st.hallId) {
+      person.queueing = { dwell: person.timer };
+    }
+  }
+
+  /** Diners coming through the door take the next place in the line, if there is one. */
+  private joinLines(): void {
+    for (const person of this.people) {
+      if (!person.queueing || person.activity !== "walk" || !person.goalStation) continue;
+      if (roomAt(person.x, person.y)?.id !== person.goalHall) continue;
+      const { dwell } = person.queueing;
+      const line = this.tagged("queue").find((st) => st.hallId === person.goalHall);
+      const place = line ? this.freeSpot(line, person) : -1;
+      // A full line: keep walking to the table, and take a place if one
+      // comes free before getting there.
+      if (!line || place < 0) continue;
+      const table = { hallId: person.goalHall, station: person.goalStation, wait: 3 + this.rand(person, 4) * 3, dwell };
+      if (this.go(person, line, place)) person.then = table;
+    }
   }
 
   private decideStaff(

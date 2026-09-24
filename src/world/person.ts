@@ -113,6 +113,13 @@ export type Person = PersonSpec & {
   speed: number;
   /** Seconds before the next decision. */
   timer: number;
+  /**
+   * Where it goes once it has stood in line: how long it waits in the line,
+   * counted from getting there, and how long it then stays at the table.
+   */
+  then: { hallId: string; station: string; wait: number; dwell: number } | null;
+  /** On its way to a meal, to join the line on coming through the door. */
+  queueing: { dwell: number } | null;
   phase: number;
   stride: number;
   talkingTo: string | null;
@@ -168,6 +175,8 @@ export function makePerson(spec: PersonSpec, hallId: string, pickId: number, x: 
     pathAt: 0,
     speed: 0,
     timer: 2 + hash1(seed) * 6,
+    then: null,
+    queueing: null,
     phase: hash1(seed + 7) * 10,
     stride: 0,
     talkingTo: null,
@@ -295,12 +304,13 @@ export function stepPerson(person: Person, dt: number, motion: boolean): void {
       if (last) {
         person.path = [];
         person.speed = 0;
+        person.queueing = null;
         person.x = target.x;
         person.y = target.y;
         person.activity = "at";
         person.pose = person.goalPose;
         person.seat = person.goalSeat;
-        person.timer = Math.max(person.timer, 3);
+        person.timer = person.then ? person.then.wait : Math.max(person.timer, 3);
       } else {
         person.pathAt++;
       }

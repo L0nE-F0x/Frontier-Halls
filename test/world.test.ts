@@ -343,6 +343,34 @@ describe("the crowd", () => {
     expect(eating.length).toBeGreaterThan(12);
   });
 
+  it("queues at the counter before sitting down to lunch", () => {
+    const crowd = new Crowd(nav);
+    let hour = 11.6;
+    let longest = 0;
+    const queued = new Set<string>();
+    const seated = new Set<string>();
+    while (hour < 13.4) {
+      hour += (1 / 20) * (2 / 60);
+      crowd.update(1 / 20, clockAt(hour, 2), true);
+      let line = 0;
+      for (const p of crowd.people) {
+        if (p.activity !== "at" || p.goalHall !== "canteen") continue;
+        const who = `${p.hallId}/${p.id}`;
+        if (p.goalStation === "queue") {
+          line++;
+          queued.add(who);
+        } else if (p.goalPose === "eat") seated.add(who);
+      }
+      longest = Math.max(longest, line);
+    }
+    expect(longest).toBeGreaterThanOrEqual(3);
+    // Most who sat down to eat stood in the line first. The rest came in at
+    // the peak, found every place in it taken, and went straight to a table.
+    const lined = [...seated].filter((who) => queued.has(who));
+    expect(seated.size).toBeGreaterThan(8);
+    expect(lined.length).toBeGreaterThanOrEqual(seated.size / 2);
+  });
+
   it("walks the day's run from the pod to the stage", () => {
     const crowd = new Crowd(nav);
     const run = crowd.checkpoint!;

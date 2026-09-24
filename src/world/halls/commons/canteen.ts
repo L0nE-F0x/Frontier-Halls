@@ -81,7 +81,10 @@ export const canteen = defineHall({
       pose: "pour", tags: ["staff"],
     });
     const queue: [number, number, number][] = [];
-    for (let x = 11.8; x <= 20.4; x += 1.1) queue.push([x, 4.35, FACE_N]);
+    // Twelve places along the counter, filled first, then a tail of five
+    // running back past the trays for the rush at twelve.
+    for (let x = 11.8; x <= 24.0; x += 1.1) queue.push([x, 4.35, FACE_N]);
+    for (let x = 10.7; x >= 6.2; x -= 1.1) queue.push([x, 4.35, FACE_N]);
     L.places("queue", "the queue", "counter", queue, { pose: "stand", tags: ["queue"] });
 
     // The coffee bar in the north-east corner.

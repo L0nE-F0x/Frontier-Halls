@@ -62,6 +62,12 @@ const KEYS: [string, string][] = [
   ["Esc", "Back out one step"],
 ];
 
+/** The readout's second line for a room: its cast, and who is in it now. */
+function headCount(hall: HallSpec, here: number): string {
+  if (hall.kind === "commons") return here === 1 ? "One figure here now" : `${here} figures here now`;
+  return `${hall.people.length} in the hall · ${here} here now`;
+}
+
 const PANELS = ["hud", "dossier", "dock", "map", "tools"] as const;
 type Panel = (typeof PANELS)[number];
 const CHROME_KEY = "frontier-halls/chrome/1";
@@ -607,16 +613,14 @@ export class Ui {
     }
 
     if (hall) {
-      const here = this.people.filter((p) => p.presence > 0.5 && roomIdAt(p.x, p.y) === hall.id).length;
+      const here = this.hereNow(hall);
       const cast = hall.people.length + hall.staff.length;
       this.announce(`${hall.name}. ${hall.tagline}. ${here} here now.`);
       kicker.textContent = hall.kind === "commons"
         ? `The commons · ${hall.ref} · ${hall.tagline}`
         : `${hall.city ?? hall.region ?? "Lab"} · ${hall.ref} · ${hall.tagline}`;
       title.textContent = hall.name;
-      sub.textContent = hall.kind === "commons"
-        ? here === 1 ? "One figure here now" : `${here} figures here now`
-        : `${hall.people.length} in the hall · ${here} here now`;
+      sub.textContent = headCount(hall, here);
       doing.textContent = hall.blurb;
       why.textContent = hall.reading;
       for (const fact of hall.facts) addFact(facts, fact.label, fact.value);
@@ -657,6 +661,21 @@ export class Ui {
    * figure is selected, so a screen reader read the whole dossier twice a
    * second for as long as you stood still.
    */
+  private hereNow(hall: HallSpec): number {
+    return this.people.filter((p) => p.presence > 0.5 && roomIdAt(p.x, p.y) === hall.id).length;
+  }
+
+  /**
+   * Keeps a room's head count current while the room is open. Rooms fill and
+   * empty through the day now, and the line was written once, on the way in:
+   * the canteen said three at the height of lunch. Only the line changes, and
+   * nothing is announced again.
+   */
+  refreshHeadCount(hallId: string): void {
+    const hall = halls.find((h) => h.id === hallId);
+    if (hall) $("d-sub").textContent = headCount(hall, this.hereNow(hall));
+  }
+
   private announce(text: string): void {
     if (text === this.spoken) return;
     this.spoken = text;

@@ -838,6 +838,10 @@ function render(dt: number): void {
     );
   }
   if (selection.kind === "person") renderCardThrottled();
+  else if (selection.kind === "hall" && time - countAt > 1.5) {
+    countAt = time;
+    ui.refreshHeadCount(selection.hallId);
+  }
 }
 
 function loop(now: number): void {
@@ -982,6 +986,7 @@ function shortName(person: Person): string {
 }
 
 let cardAt = 0;
+let countAt = 0;
 function renderCardThrottled(): void {
   if (time - cardAt < 0.45) return;
   cardAt = time;
