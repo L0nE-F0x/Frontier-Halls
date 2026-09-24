@@ -23,7 +23,10 @@ export const DEFAULTS: Settings = {
   grain: 0.22,
   bloom: 0.6,
   vignette: 0.3,
-  rate: 4,
+  // Two minutes a second: a day in twelve. The building is big enough now
+  // that at four, a walk to the canteen from the far corner took longer
+  // than lunch.
+  rate: 2,
   quality: 1,
   motion: true,
   labels: true,

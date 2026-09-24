@@ -23,16 +23,38 @@ export const INDEX = "https://openrouter.ai/api/v1/models";
 
 /** Which vendor prefixes in the index belong to which hall. */
 export const VENDORS = {
+  amazon: ["amazon"],
+  microsoft: ["microsoft"],
+  ai2: ["allenai"],
   deepmind: ["google"],
-  anthropic: ["anthropic"],
-  openai: ["openai"],
-  xai: ["x-ai"],
-  meta: ["meta", "meta-llama"],
   mistral: ["mistralai"],
+  kimi: ["moonshotai"],
+  zai: ["z-ai"],
+  bytedance: ["bytedance-seed", "bytedance"],
+  cohere: ["cohere"],
+  ibm: ["ibm-granite"],
+  perplexity: ["perplexity"],
+  blackforest: ["black-forest-labs"],
+  poolside: ["poolside"],
+  xiaomi: ["xiaomi"],
+  baidu: ["baidu"],
+  meituan: ["meituan"],
+  openai: ["openai"],
+  anthropic: ["anthropic"],
+  thinking: ["thinkingmachines"],
+  tii: ["tiiuae"],
   deepseek: ["deepseek"],
   qwen: ["qwen"],
-  ai2: ["allenai"],
-  kimi: ["moonshotai"],
+  ant: ["inclusionai"],
+  upstage: ["upstage"],
+  xai: ["x-ai"],
+  meta: ["meta", "meta-llama"],
+  nvidia: ["nvidia"],
+  sarvam: ["sarvamai"],
+  minimax: ["minimax"],
+  stepfun: ["stepfun"],
+  tencent: ["tencent"],
+  sakana: ["sakana"],
 };
 
 /**
@@ -74,6 +96,51 @@ export const RULES = {
   "qwen/coder": { include: /^qwen\/qwen[\d.]*-coder/, avoid: /\d+b/ },
   "kimi/flagship": { include: /^moonshotai\/kimi-k\d+$/ },
   "kimi/coder": { include: /^moonshotai\/kimi-k[\d.]+-code$/ },
+
+  // The labs the building grew to hold in September 2026.
+  "deepmind/gemma": { include: /^google\/gemma-\d+(\.\d+)?-\d+b-it$/ },
+  "mistral/small": { include: /^mistralai\/mistral-small/ },
+  "qwen/omni": { include: /^qwen\/qwen[\d.]+-omni/ },
+  "amazon/premier": { include: /^amazon\/nova-premier/ },
+  "amazon/lite": { include: /^amazon\/nova-(\d+-)?lite/ },
+  "amazon/micro": { include: /^amazon\/nova-(\d+-)?micro/ },
+  "microsoft/phi": { include: /^microsoft\/phi-\d/ },
+  "zai/prime": { include: /^z-ai\/glm-[\d.]+-prime$/ },
+  "zai/main": { include: /^z-ai\/glm-[\d.]+$/ },
+  "zai/flash": { include: /^z-ai\/glm-[\d.]+-flash$/ },
+  "bytedance/flagship": { include: /^bytedance-seed\/seed-[\d.-]+-turbo$/ },
+  "bytedance/code": { include: /^bytedance-seed\/seed-[\d.-]+-code$/ },
+  "bytedance/mini": { include: /^bytedance-seed\/seed-[\d.-]+-mini$/ },
+  "cohere/flagship": { include: /^cohere\/command-a(-plus)?$/ },
+  "ibm/granite": { include: /^ibm-granite\/granite-[\d.]+-\d+b$/ },
+  "ibm/micro": { include: /^ibm-granite\/granite-[\d.]+-(h-)?micro$/ },
+  "perplexity/search": { include: /^perplexity\/sonar-pro-search$/ },
+  "perplexity/research": { include: /^perplexity\/sonar-deep-research$/ },
+  "perplexity/sonar": { include: /^perplexity\/sonar$/ },
+  "poolside/s": { include: /^poolside\/laguna-s-[\d.]+$/ },
+  "poolside/xs": { include: /^poolside\/laguna-xs-[\d.]+$/ },
+  "xiaomi/pro": { include: /^xiaomi\/mimo-v[\d.]+-pro$/ },
+  "xiaomi/flash": { include: /^xiaomi\/mimo-v[\d.]+-flash$/ },
+  "baidu/vl": { include: /^baidu\/ernie-[\d.]+-vl/ },
+  "meituan/flagship": { include: /^meituan\/longcat-[\d.]+$/ },
+  "thinking/inkling": { include: /^thinkingmachines\/inkling(-[\d.]+)?$/ },
+  "thinking/small": { include: /^thinkingmachines\/inkling(-[\d.]+)?-small$/ },
+  "ant/flash": { include: /^inclusionai\/ling-[\d.]+-flash$/ },
+  "ant/fin": { include: /^inclusionai\/ling-[\d.]+-flash-fin$/ },
+  "upstage/pro": { include: /^upstage\/solar-pro-?\d/ },
+  "upstage/mini": { include: /^upstage\/solar-mini-?\d/ },
+  "nvidia/ultra": { include: /^nvidia\/nemotron-[\d.]+-ultra/ },
+  "nvidia/super": { include: /^nvidia\/nemotron-[\d.]+-super/ },
+  "nvidia/lightning": { include: /^nvidia\/nemotron-[\d.]+-lightning$/ },
+  "nvidia/safety": { include: /^nvidia\/nemotron-[\d.]+-content-safety$/ },
+  "minimax/m3": { include: /^minimax\/minimax-m[\d.]+$/ },
+  "minimax/her": { include: /^minimax\/minimax-m[\d.]+-her$/ },
+  "stepfun/flash": { include: /^stepfun\/step-[\d.]+-flash$/ },
+  "tencent/hy4": { include: /^tencent\/hy\d+(-preview)?$/ },
+  "tencent/mt": { include: /^tencent\/hy-mt\d+-\d+b-a\d+b$/ },
+  "sakana/ultra": { include: /^sakana\/fugu-ultra/ },
+  "sakana/max": { include: /^sakana\/fugu-max/ },
+  "sakana/namazu": { include: /^sakana\/sakana-namazu/ },
 };
 
 /**
@@ -93,8 +160,12 @@ export const NOISE = /(:(free|batch|extended|thinking|online|nitro|floor)$)|(-la
 export const TIERED_BAND = 4;
 export const LOOSE_BAND = 8;
 
-/** More moves than this in one run is a broken index or rule, not a release day. */
-export const MAX_MOVES = 6;
+/**
+ * More moves than this in one run is a broken index or rule, not a release
+ * day. It was six when the building had thirty seats with rules; with
+ * seventy, two labs shipping a lineup in the same six hours is not unusual.
+ */
+export const MAX_MOVES = 10;
 
 /** Plates in the world are sized for about this many characters. */
 export const SHORT_MAX = 14;
@@ -186,8 +257,19 @@ export function shorten(name, key) {
     mistral: /^Mistral\s+/i,
     meta: /^Muse\s+/i,
     kimi: /^Kimi\s+/i,
+    // What tells these seats apart is the last word, not the version.
+    nvidia: /^Nemotron\s+[\d.]+\s+/i,
+    minimax: /^MiniMax\s+/i,
+    perplexity: /^Sonar\s+/i,
+    sakana: /^Sakana\s+/i,
   }[hall];
-  const words = (drop ? name.replace(drop, "") : name).split(/\s+/);
+  // A few families keep their name and lose only the version in the middle.
+  const swap = {
+    ibm: [/^Granite\s+[\d.]+\s+/i, "Granite "],
+    ant: [/^Ling\s+[\d.]+\s+/i, "Ling "],
+  }[hall];
+  const kept = swap ? name.replace(swap[0], swap[1]) : drop ? name.replace(drop, "") : name;
+  const words = kept.split(/\s+/);
   while (words.length > 1 && words.join(" ").length > SHORT_MAX) words.pop();
   return words.join(" ");
 }

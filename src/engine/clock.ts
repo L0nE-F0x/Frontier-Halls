@@ -14,17 +14,19 @@ export type DayPhase = {
  * time.
  */
 export const PHASES: DayPhase[] = [
-  { id: "night", name: "Night watch", from: 0, to: 6, note: "Skeleton crew. The racks keep working." },
-  { id: "dawn", name: "First light", from: 6, to: 8.5, note: "The halls fill. Lamps go off one by one." },
-  { id: "morning", name: "Morning run", from: 8.5, to: 12.5, note: "Deep work. Everyone is at a station." },
-  { id: "midday", name: "Midday", from: 12.5, to: 13.75, note: "The benches empty. People talk." },
-  { id: "afternoon", name: "Long afternoon", from: 13.75, to: 17.5, note: "The heavy jobs are running." },
-  { id: "review", name: "Review", from: 17.5, to: 19.5, note: "Results are walked between halls." },
-  { id: "evening", name: "Evening", from: 19.5, to: 22.5, note: "Lamps on. A few stay with the long problem." },
+  { id: "night", name: "Night watch", from: 0, to: 6, note: "Skeleton crew. The day's run is pretraining." },
+  { id: "dawn", name: "First light", from: 6, to: 8.5, note: "The gym opens. Lamps go off one by one." },
+  { id: "morning", name: "Morning run", from: 8.5, to: 12, note: "Deep work. Everyone is at a station." },
+  // Two hours, not an hour and a quarter: the canteen is a long walk from the
+  // far corners of the block, and lunch used to be over before they arrived.
+  { id: "midday", name: "Lunch", from: 12, to: 14, note: "The canteen fills, nearest halls first." },
+  { id: "afternoon", name: "Long afternoon", from: 14, to: 17.5, note: "The day's run is taught, rated and examined." },
+  { id: "review", name: "Review", from: 17.5, to: 19.5, note: "The day's model is shown on the stage." },
+  { id: "evening", name: "Evening", from: 19.5, to: 22.5, note: "Dinner, the gym, and the long problem." },
   { id: "late", name: "Late", from: 22.5, to: 24, note: "The building goes quiet." },
 ];
 
-export const RATE_STEPS = [0, 0.5, 1, 4, 15, 60, 240];
+export const RATE_STEPS = [0, 0.5, 1, 2, 4, 15, 60, 240];
 
 export class WorldClock {
   /** Minutes since midnight, fractional. */
@@ -34,7 +36,7 @@ export class WorldClock {
    * is slow enough for a phase to land; fifteen ran the sky from dawn to night
    * in the time it takes to read the card.
    */
-  rate = 4;
+  rate = 2;
   running = true;
   day = 0;
 

@@ -16,7 +16,7 @@
     </style>
     <meta
       name="description"
-      content="Ten halls around one court, drawn in a handful of inks and running on one clock."
+      content="Thirty-two frontier AI labs and the rooms they share, drawn as one building in a handful of inks and running on one clock."
     />
     <meta name="theme-color" content="#d6d2cc" />
     <link rel="canonical" href="https://frontier-halls.netlify.app/" />
@@ -30,21 +30,21 @@
     <meta property="og:title" content="Frontier Halls" />
     <meta
       property="og:description"
-      content="Ten halls around one court, drawn in a handful of inks and running on one clock."
+      content="Thirty-two frontier AI labs and the rooms they share, drawn as one building in a handful of inks and running on one clock."
     />
     <meta property="og:image" content="https://frontier-halls.netlify.app/og.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="Frontier Halls, an isometric cutaway of ten labs as one building." />
+    <meta property="og:image:alt" content="Frontier Halls, an isometric cutaway of thirty-two AI labs and their shared rooms as one building." />
 
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Frontier Halls" />
     <meta
       name="twitter:description"
-      content="Ten halls around one court, drawn in a handful of inks and running on one clock."
+      content="Thirty-two frontier AI labs and the rooms they share, drawn as one building in a handful of inks and running on one clock."
     />
     <meta name="twitter:image" content="https://frontier-halls.netlify.app/og.png" />
-    <meta name="twitter:image:alt" content="Frontier Halls, an isometric cutaway of ten labs as one building." />
+    <meta name="twitter:image:alt" content="Frontier Halls, an isometric cutaway of thirty-two AI labs and their shared rooms as one building." />
   </head>
   <body class="at-gate">
     <canvas id="view" aria-label="Isometric cutaway of the frontier halls"></canvas>
@@ -184,9 +184,10 @@
         <h2>Keys</h2>
         <dl class="keys" id="keys-list"></dl>
         <p class="note">
-          One building, ten halls, one clock. A sidewalk runs around the outside. Drag to look,
-          scroll to zoom, click a figure to read who it is. Everything in the room is drawn from a handful of inks.
-          Hide any panel with its mark, or press \ to clear them all.
+          One building: thirty-two labs, eleven shared rooms, one clock. A sidewalk runs around the
+          outside. Drag to look, scroll to zoom, walk from room to room with the arrow keys, and click a
+          figure to read who it is. Everything is drawn from a handful of inks. Hide any panel with its
+          mark, or press \ to clear them all.
         </p>
       </div>
     </div>
@@ -194,22 +195,34 @@
     <div id="about-panel" class="sheet" hidden>
       <div class="sheet-body">
         <p class="kicker">What is this?</p>
-        <h2>One building, ten halls, one clock</h2>
+        <h2>Thirty-two labs, one building, one clock</h2>
         <p class="about-p">
-          Frontier Halls is a cutaway of ten frontier labs drawn as one building. The halls sit
-          around a court. A clock stands in the middle of it, and every wall clock in the building
-          is reading that one.
+          Frontier Halls is a cutaway of thirty-two frontier AI labs drawn as one building. The plan
+          is a map of the world turned into floor: the Americas along the west, then Europe, the Gulf
+          and India, China to the east, and Korea and Japan in the far corner. Every hall is
+          furnished for its own lab, its city and the thing it is known for, from the conveyor at
+          Amazon to the aquarium at Sakana.
         </p>
         <p class="about-p">
-          The figures are models. They are not on a path someone laid down: every few seconds each
-          one decides where to go from the hour and from its own habits. Click a figure to read who
-          it is. Click a floor to enter the hall. The row along the bottom names every hall, and
-          0 frames the whole block.
+          Through the middle runs the commons: the corpus, the pretraining cluster, the classroom,
+          the RLHF studio, the examination hall, the red team's cage and the interpretability lab,
+          which are the rooms a model passes through, and the canteen, the gym, the stage and an
+          open court, which everybody shares. A clock stands in the court, and every wall clock in
+          the building is reading that one.
         </p>
         <p class="about-p">
-          Ai2 and Kimi are the first rooms of two quarters the building is growing into, an
-          open-source quarter and an Asian quarter. The unfinished frame on Kimi's outer wall is
-          where the next room attaches. A sidewalk with trees and lamps runs around the outside.
+          The figures are models. None of them is on a path someone laid down: every few seconds
+          each one decides where to go from the hour and from its own habits, walks there round the
+          furniture, and sits in the chair drawn for it. Lunch empties the labs into the canteen, and
+          the review in the evening fills the stage. Every day one model is trained here. It grows in
+          the pod overnight, is taught, rated, examined and tested through the afternoon, is shown on
+          the stage, and leaves by the open frame in the south-east corner.
+        </p>
+        <p class="about-p">
+          Most seats follow a family of models in a public index, and a script checks it every six
+          hours and moves a seat when its lab ships a successor; the rest are kept by hand. Click a
+          figure to read who it is, click a floor to enter a room, and use the row along the bottom
+          to frame a region. 0 frames the whole block.
         </p>
         <p class="about-p">
           The picture is drawn by a software rasteriser into a small buffer, reduced to a handful
@@ -251,7 +264,7 @@
               <p class="kicker">A cutaway, drawn live</p>
               <h1 id="gate-title">Frontier <em>Halls</em></h1>
               <p id="gate-lead" class="gate-lead">
-                <span data-fill="halls-word">Ten</span> frontier labs drawn as one building, around one court
+                <span data-fill="halls-word">Thirty-two</span> frontier labs drawn as one building, around one court
                 and running on one clock. The figures are models, and each one keeps its own hours.
               </p>
             </div>
@@ -260,7 +273,7 @@
                 <h2 class="gate-label">Notes</h2>
                 <ol>
                   <li class="gate-pointer-only">Point at a hall, in the schedule or on the plate, to light it up.</li>
-                  <li>Choose one, or press its key, to go straight in.</li>
+                  <li>Choose one to go straight in. Its grid reference finds it on the plan.</li>
                   <li>Turn the building with Q and E, or the arrows under the plate.</li>
                 </ol>
               </div>

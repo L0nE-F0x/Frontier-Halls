@@ -3,10 +3,13 @@ import { PALETTES, type Palette } from "../engine/palettes";
 import { RATE_STEPS, type WorldClock } from "../engine/clock";
 import { unproject, unrotX, unrotY } from "../engine/project";
 import type { Camera, RGB } from "../engine/types";
-import { BLOCK_D, BLOCK_W, GRID, halls, SLOTS } from "../world/building";
+import { BLOCK_D, BLOCK_W, COL_LABELS, GRID, hallOrigin, halls, labs, ROW_LABELS, SLOTS } from "../world/building";
+import { CHECKPOINT } from "../world/crowd";
 import { GROUNDS_REACH } from "../world/grounds";
+import type { HallSpec } from "../world/halls/types";
 import { RD, RW } from "../world/metrics";
 import type { Person } from "../world/person";
+import { REGIONS, regionOf } from "../world/regions";
 import type { Settings } from "./settings";
 
 export type Selection =
@@ -18,6 +21,8 @@ export type UiHooks = {
   goOverview(): void;
   goHall(id: string): void;
   goPerson(hallId: string, personId: string): void;
+  /** Frame a region of the building as a whole. */
+  goRegion(id: string): void;
   stepPerson(delta: number): void;
   rotate(delta: number): void;
   zoom(factor: number): void;
@@ -41,9 +46,9 @@ export const LOOKING_FROM = ["south-east", "south-west", "north-west", "north-ea
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 
 const KEYS: [string, string][] = [
-  ["1 – 9, A", "Enter a hall"],
+  ["Arrows", "Step to the next room"],
   ["0", "The whole block"],
-  ["Click", "Read a figure"],
+  ["Click", "Read a figure, or enter a room"],
   ["Drag / scroll", "Look and zoom"],
   ["Q / E", "Turn the building"],
   [", / .", "Previous, next figure"],
@@ -304,9 +309,9 @@ export class Ui {
   }
 
   /**
-   * The gate's mark, drawn from the real plan rather than a stock cube: the
-   * slots that hold halls stand up, the court stays a hole, and the mark grows
-   * a room whenever the building does.
+   * The gate's mark, drawn from the real plan rather than a stock cube: every
+   * room stands up, the court stays a hole, and the mark grows a room
+   * whenever the building does.
    */
   private drawGateMark(): void {
     const svg = document.querySelector<SVGSVGElement>(".gate-mark");
@@ -335,8 +340,10 @@ export class Ui {
     for (const slot of order) {
       const c = slot.col;
       const rw = slot.row;
-      const z = slot.hall ? RISE : 0;
-      if (!slot.hall) {
+      // The commons stand a little lower than the labs, so the spine of
+      // shared rooms reads as a street through the middle of the mark.
+      const z = slot.room.open ? 0 : slot.room.kind === "commons" ? RISE * 0.62 : RISE;
+      if (slot.room.open) {
         face([
           [sx(c, rw), sy(c, rw, 0)], [sx(c + 1, rw), sy(c + 1, rw, 0)],
           [sx(c + 1, rw + 1), sy(c + 1, rw + 1, 0)], [sx(c, rw + 1), sy(c, rw + 1, 0)],
@@ -366,36 +373,50 @@ export class Ui {
     svg.innerHTML = parts.join("");
   }
 
+  /**
+   * The dock is a menu bar of the building's regions. Ten halls fitted in a
+   * row; forty-one rooms do not, and a row that has to be scrolled hides most
+   * of the building from anyone who does not think to scroll it. A region
+   * opens into a list of its rooms, and the list's heading frames the whole
+   * region.
+   */
   private buildDock(): void {
     this.dock.replaceChildren();
     const hide = document.createElement("button");
     hide.type = "button";
     hide.className = "fold";
     hide.dataset.fold = "dock";
-    hide.title = "Hide the halls";
+    hide.title = "Hide the rooms";
     hide.textContent = "Hide";
     const tab = document.createElement("button");
     tab.type = "button";
     tab.className = "fold-tab";
     tab.dataset.fold = "dock";
-    tab.title = "Show the halls";
-    tab.textContent = "Halls";
+    tab.title = "Show the rooms";
+    tab.textContent = "Rooms";
     const row = document.createElement("div");
     row.className = "dock-halls";
-    for (const hall of halls) {
+    for (const region of REGIONS) {
       const button = document.createElement("button");
       button.type = "button";
-      button.dataset.hall = hall.id;
-      const swatch = document.createElement("i");
-      swatch.className = "swatch";
-      swatch.style.background = hex(hall.accent);
-      const key = document.createElement("span");
-      key.className = "k";
-      key.textContent = hall.key.toUpperCase();
+      button.dataset.region = region.id;
+      button.setAttribute("aria-expanded", "false");
+      const swatches = document.createElement("span");
+      swatches.className = "swatches";
+      for (const id of region.rooms.slice(0, 5)) {
+        const room = halls.find((h) => h.id === id);
+        if (!room) continue;
+        const sw = document.createElement("i");
+        sw.style.background = hex(room.accent);
+        swatches.append(sw);
+      }
       const name = document.createElement("span");
-      name.textContent = hall.name;
-      button.append(swatch, key, name);
-      button.addEventListener("click", () => this.hooks.goHall(hall.id));
+      name.textContent = region.short;
+      const count = document.createElement("span");
+      count.className = "k";
+      count.textContent = String(region.rooms.length);
+      button.append(swatches, name, count);
+      button.addEventListener("click", () => this.toggleDockMenu(region.id));
       row.append(button);
     }
     const all = document.createElement("button");
@@ -407,12 +428,91 @@ export class Ui {
     const name = document.createElement("span");
     name.textContent = "Whole block";
     all.append(key, name);
-    all.addEventListener("click", () => this.hooks.goOverview());
-    this.dock.append(hide, tab, row, all);
+    all.addEventListener("click", () => {
+      this.closeDockMenu();
+      this.hooks.goOverview();
+    });
+    const menu = document.createElement("div");
+    menu.className = "dock-menu";
+    menu.hidden = true;
+    this.dock.append(hide, tab, row, all, menu);
     this.dockRow = row;
+    this.dockMenu = menu;
     row.addEventListener("scroll", () => this.markDockScroll(), { passive: true });
-    // After layout, so scrollWidth is real.
     requestAnimationFrame(() => this.markDockScroll());
+  }
+
+  private dockMenu: HTMLElement | null = null;
+  private openRegion: string | null = null;
+
+  private toggleDockMenu(regionId: string): void {
+    if (this.openRegion === regionId) {
+      this.closeDockMenu();
+      return;
+    }
+    const region = REGIONS.find((r) => r.id === regionId);
+    const menu = this.dockMenu;
+    if (!region || !menu) return;
+    this.openRegion = regionId;
+    menu.replaceChildren();
+    const head = document.createElement("button");
+    head.type = "button";
+    head.className = "dock-menu-head";
+    const title = document.createElement("span");
+    title.textContent = region.name;
+    const act = document.createElement("span");
+    act.className = "k";
+    act.textContent = "Frame all";
+    head.append(title, act);
+    head.addEventListener("click", () => {
+      this.closeDockMenu();
+      this.hooks.goRegion(region.id);
+    });
+    const list = document.createElement("ul");
+    list.className = "dock-menu-list";
+    if (region.rooms.length > 6) list.classList.add("two");
+    for (const id of region.rooms) {
+      const room = halls.find((h) => h.id === id);
+      if (!room) continue;
+      const li = document.createElement("li");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.hall = room.id;
+      const swatch = document.createElement("i");
+      swatch.className = "swatch";
+      swatch.style.background = hex(room.accent);
+      const name = document.createElement("span");
+      name.className = "n";
+      name.textContent = room.name;
+      const where = document.createElement("span");
+      where.className = "where";
+      where.textContent = room.city ?? room.tagline;
+      const ref = document.createElement("span");
+      ref.className = "k";
+      ref.textContent = room.ref;
+      button.append(swatch, name, where, ref);
+      button.addEventListener("click", () => {
+        this.closeDockMenu();
+        this.hooks.goHall(room.id);
+      });
+      li.append(button);
+      list.append(li);
+    }
+    menu.append(head, list);
+    menu.hidden = false;
+    for (const b of this.dock.querySelectorAll<HTMLButtonElement>("button[data-region]")) {
+      b.setAttribute("aria-expanded", b.dataset.region === regionId ? "true" : "false");
+    }
+  }
+
+  closeDockMenu(): boolean {
+    const was = this.openRegion !== null;
+    this.openRegion = null;
+    if (this.dockMenu) this.dockMenu.hidden = true;
+    for (const b of this.dock.querySelectorAll<HTMLButtonElement>("button[data-region]")) {
+      b.setAttribute("aria-expanded", "false");
+    }
+    return was;
   }
 
   /**
@@ -484,7 +584,9 @@ export class Ui {
 
     if (person && hall) {
       this.announce(`${person.name}. ${person.role}. ${hall.name}.`);
-      kicker.textContent = `${hall.name} · ${person.tier}`;
+      kicker.textContent = person.staff
+        ? `${hall.name} · ${person.tier}`
+        : `${hall.name}${hall.city ? ` · ${hall.city}` : ""} · ${person.tier}`;
       title.textContent = person.name;
       sub.textContent = person.role;
       for (const chip of person.chips) {
@@ -494,8 +596,8 @@ export class Ui {
       }
       doing.textContent = person.doing;
       why.textContent = person.why;
-      addFact(facts, "Right now", describe(person));
-      addFact(facts, "Hall", hall.name);
+      addFact(facts, "Right now", describe(person, this.people));
+      addFact(facts, person.staff ? "Works in" : "Hall", person.staff ? hall.name : `${hall.name}, ${hall.ref}`);
       ethos.textContent = hall.ethos;
       count.textContent = total ? `${index + 1} / ${total}` : "";
       $("d-prev").hidden = total < 2;
@@ -505,13 +607,16 @@ export class Ui {
     }
 
     if (hall) {
-      this.announce(`${hall.name}. ${hall.tagline}. ${hall.people.length} in the hall.`);
-      const keyLabel = hall.key.toUpperCase();
-      kicker.textContent = hall.quarter
-        ? `${hall.quarter} · Hall ${keyLabel} · ${hall.tagline}`
-        : `Hall ${keyLabel} · ${hall.tagline}`;
+      const here = this.people.filter((p) => p.presence > 0.5 && roomIdAt(p.x, p.y) === hall.id).length;
+      const cast = hall.people.length + hall.staff.length;
+      this.announce(`${hall.name}. ${hall.tagline}. ${here} here now.`);
+      kicker.textContent = hall.kind === "commons"
+        ? `The commons · ${hall.ref} · ${hall.tagline}`
+        : `${hall.city ?? hall.region ?? "Lab"} · ${hall.ref} · ${hall.tagline}`;
       title.textContent = hall.name;
-      sub.textContent = `${hall.people.length} in the hall`;
+      sub.textContent = hall.kind === "commons"
+        ? here === 1 ? "One figure here now" : `${here} figures here now`
+        : `${hall.people.length} in the hall · ${here} here now`;
       doing.textContent = hall.blurb;
       why.textContent = hall.reading;
       for (const fact of hall.facts) addFact(facts, fact.label, fact.value);
@@ -519,23 +624,25 @@ export class Ui {
       count.textContent = "";
       $("d-prev").hidden = false;
       $("d-next").hidden = false;
-      $("d-nav").hidden = hall.people.length < 1;
+      $("d-nav").hidden = cast < 1;
       return;
     }
 
-    this.announce(`The whole block. ${halls.length} halls.`);
+    this.announce(`The whole block. ${labs.length} labs and the commons.`);
     kicker.textContent = "One building";
-    title.textContent = `${halls.length} halls, one clock`;
+    title.textContent = `${inWords(labs.length, true)} labs, one clock`;
     sub.textContent = "September 2026";
     doing.textContent =
-      "The halls are laid out around a court, and the clock standing in the middle of it is the one every wall clock in the building is reading. A sidewalk runs around the outside.";
+      "The labs are laid out as a map of the world, the Americas to the west and Asia to the east. Through the middle runs the commons: the corpus, the cluster, the classroom and the studio every model passes through, and the canteen, the gym and the court they all share.";
     why.textContent =
-      "Click a figure to read who it is and why it moves the way it does. Click a floor to enter the hall. The figures are not on rails: they decide where to go from the clock and from their own habits.";
-    addFact(facts, "Plan", `${GRID.cols} × ${GRID.rows}, ${halls.length} halls around a court`);
+      "Every day one model is trained here. It grows in the pod overnight, is taught and rated and examined through the afternoon, is shown on the stage at the review, and leaves by the open frame in the south-east corner. Click anything to read it.";
+    addFact(facts, "Plan", `${GRID.cols} × ${GRID.rows}, a map of the world`);
+    addFact(facts, "Labs", String(labs.length));
+    addFact(facts, "Shared rooms", String(halls.length - labs.length));
     addFact(facts, "Figures", String(this.people.length));
     const active = PALETTES.find((p) => p.id === this.settings.palette) ?? PALETTES[0];
     addFact(facts, "Inks", String(active.ramp.length + active.accents.length));
-    ethos.textContent = "Drag to look. Scroll to zoom. Q and E turn the building. Press ? for the rest.";
+    ethos.textContent = "Drag to look. Scroll to zoom. Q and E turn the building; the arrows walk room to room. Press ? for the rest.";
     count.textContent = "";
     $("d-prev").hidden = true;
     $("d-next").hidden = true;
@@ -557,7 +664,12 @@ export class Ui {
   }
 
   markDock(hallId: string | null): void {
+    const region = hallId ? regionOf(hallId)?.id : null;
     for (const button of this.dock.querySelectorAll<HTMLButtonElement>("button")) {
+      if ("region" in button.dataset) {
+        button.setAttribute("aria-current", button.dataset.region === region ? "true" : "false");
+        continue;
+      }
       if (!("hall" in button.dataset)) continue;
       const id = button.dataset.hall ?? "";
       button.setAttribute("aria-current", id === (hallId ?? "") ? "true" : "false");
@@ -642,10 +754,19 @@ export class Ui {
     const rows: FinderRow[] = [];
     for (const hall of halls) {
       rows.push({
-        kind: "Hall",
+        kind: hall.kind === "commons" ? "Commons" : "Lab",
         label: hall.name,
-        meta: hall.quarter ? `${hall.quarter} · ${hall.tagline}` : hall.tagline,
+        // The grid reference is searchable, so "E5" finds whatever stands there.
+        meta: `${hall.ref} · ${hall.city ? `${hall.city} · ` : ""}${hall.tagline}`,
         run: () => this.hooks.goHall(hall.id),
+      });
+    }
+    for (const region of REGIONS) {
+      rows.push({
+        kind: "Region",
+        label: region.name,
+        meta: `Frame ${region.rooms.length} rooms`,
+        run: () => this.hooks.goRegion(region.id),
       });
     }
     for (const person of this.people) {
@@ -658,12 +779,13 @@ export class Ui {
       });
     }
     rows.push(
-      { kind: "View", label: "The whole block", meta: `Frame all ${halls.length} halls`, run: () => this.hooks.goOverview() },
+      { kind: "View", label: "The whole block", meta: `Frame all ${halls.length} rooms`, run: () => this.hooks.goOverview() },
       { kind: "View", label: "Turn right", meta: "E", run: () => this.hooks.rotate(1) },
       { kind: "View", label: "Turn left", meta: "Q", run: () => this.hooks.rotate(-1) },
       { kind: "Clock", label: "Hold the clock", meta: "Space", run: () => this.hooks.togglePause() },
       { kind: "Clock", label: "Go to first light", meta: "06:20", run: () => this.hooks.setMinutes(380) },
-      { kind: "Clock", label: "Go to midday", meta: "12:40", run: () => this.hooks.setMinutes(760) },
+      { kind: "Clock", label: "Go to lunch", meta: "12:40", run: () => this.hooks.setMinutes(760) },
+      { kind: "Clock", label: "Go to the keynote", meta: "18:30", run: () => this.hooks.setMinutes(1110) },
       { kind: "Clock", label: "Go to night watch", meta: "02:30", run: () => this.hooks.setMinutes(150) },
       { kind: "Page", label: "What is this?", meta: "The building, explained", run: () => this.toggleSheet(this.aboutPanel) },
       { kind: "Page", label: "Settings", meta: "S", run: () => this.toggleSheet(this.settingsPanel) },
@@ -950,22 +1072,29 @@ export class Ui {
   private buildGate(palette: Palette): void {
     const list = $("gate-halls");
     list.replaceChildren();
-    for (const hall of halls) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.dataset.hall = hall.id;
-      button.title = `Enter at ${hall.name} (${hall.key.toUpperCase()})`;
-      if (hall.id === (this.peeked ?? this.arrivalHall)) button.classList.add("peek");
-      const swatch = document.createElement("i");
-      swatch.className = "swatch";
-      swatch.style.background = hex(hall.accent);
-      const tagline = span("t", "");
-      if (hall.quarter) tagline.append(span("q", hall.quarter));
-      tagline.append(hall.tagline);
-      button.append(span("k", hall.key.toUpperCase()), swatch, span("n", hall.name), span("leader", ""), tagline);
-      const li = document.createElement("li");
-      li.append(button);
-      list.append(li);
+    // Grouped the way the dock groups them, and the way the plan lays them
+    // out: a region at a time, each room with the grid square it stands in.
+    for (const region of REGIONS) {
+      const head = document.createElement("li");
+      head.className = "gate-region";
+      head.textContent = region.short;
+      list.append(head);
+      for (const id of region.rooms) {
+        const hall = halls.find((h) => h.id === id);
+        if (!hall) continue;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.dataset.hall = hall.id;
+        button.title = `Enter at ${hall.name}, ${hall.ref}`;
+        if (hall.id === (this.peeked ?? this.arrivalHall)) button.classList.add("peek");
+        const swatch = document.createElement("i");
+        swatch.className = "swatch";
+        swatch.style.background = hex(hall.accent);
+        button.append(span("k", hall.ref), swatch, span("n", hall.name), span("leader", ""), span("t", hall.city ?? hall.tagline));
+        const li = document.createElement("li");
+        li.append(button);
+        list.append(li);
+      }
     }
 
     $("gate-ink-name").textContent = palette.name;
@@ -987,14 +1116,14 @@ export class Ui {
       addFact(cell, label, value);
       facts.append(cell);
     };
-    fact("Plan", `${GRID.cols} × ${GRID.rows}, around a court`);
-    fact("Halls", String(halls.length));
+    fact("Plan", `${GRID.cols} × ${GRID.rows}, a map of the world`);
+    fact("Labs", String(labs.length));
+    fact("Shared", String(halls.length - labs.length));
     fact("Figures", String(this.people.length));
     fact("Inks", String(palette.ramp.length + palette.accents.length));
 
-    const count = inWords(halls.length);
     for (const el of document.querySelectorAll<HTMLElement>('[data-fill="halls-word"]')) {
-      el.textContent = count.charAt(0).toUpperCase() + count.slice(1);
+      el.textContent = inWords(labs.length, true);
     }
   }
 
@@ -1041,7 +1170,7 @@ export class Ui {
       const slot = SLOTS.find(
         (item) => wx >= item.x && wx < item.x + RW && wy >= item.y && wy < item.y + RD,
       );
-      if (slot?.hall) this.hooks.goHall(slot.hall.id);
+      if (slot) this.hooks.goHall(slot.room.id);
       else this.hooks.goOverview();
     });
   }
@@ -1092,26 +1221,42 @@ export class Ui {
       (BLOCK_W + GROUNDS_REACH * 2) * s, (BLOCK_D + GROUNDS_REACH * 2) * s,
     );
 
-    for (const slot of SLOTS) {
-      const active = slot.hall?.id === selectedHall;
-      if (!slot.hall) {
+    for (const room of halls) {
+      const o = hallOrigin(room);
+      const active = room.id === selectedHall;
+      const rw = room.w * s;
+      const rd = room.d * s;
+      if (room.open) {
         // The court, drawn open.
         ctx.strokeStyle = hex(mix(ink, page, 0.7));
         ctx.setLineDash([2, 2]);
         ctx.lineWidth = 1;
-        ctx.strokeRect(px(slot.x) + 1.5, py(slot.y) + 1.5, RW * s - 3, RD * s - 3);
+        ctx.strokeRect(px(o.x) + 1.5, py(o.y) + 1.5, rw - 3, rd - 3);
         ctx.setLineDash([]);
         continue;
       }
-      ctx.fillStyle = hex(
-        active ? mix(slot.hall.accent, page, 0.4) : mix(page, ink, 0.1),
-      );
-      ctx.fillRect(px(slot.x) + 1, py(slot.y) + 1, RW * s - 2, RD * s - 2);
-      ctx.fillStyle = hex(slot.hall.accent);
-      ctx.fillRect(px(slot.x) + 1, py(slot.y + RD) - 3, RW * s - 2, 2);
+      // The commons are drawn a shade lighter than the labs, so the spine of
+      // shared rooms reads as a street through the plan.
+      const base = room.kind === "commons" ? mix(page, ink, 0.04) : mix(page, ink, 0.1);
+      ctx.fillStyle = hex(active ? mix(room.accent, page, 0.4) : base);
+      ctx.fillRect(px(o.x) + 1, py(o.y) + 1, rw - 2, rd - 2);
+      if (room.kind === "lab") {
+        ctx.fillStyle = hex(room.accent);
+        ctx.fillRect(px(o.x) + 1, py(o.y + room.d) - 3, rw - 2, 2);
+      }
       ctx.strokeStyle = hex(mix(ink, page, 0.55));
       ctx.lineWidth = 1;
-      ctx.strokeRect(px(slot.x) + 0.5, py(slot.y) + 0.5, RW * s - 1, RD * s - 1);
+      ctx.strokeRect(px(o.x) + 0.5, py(o.y) + 0.5, rw - 1, rd - 1);
+    }
+    // Grid bubbles along the top and the left, the way a drawing is keyed.
+    if (s * RW >= 14) {
+      ctx.font = MAP_FONT;
+      ctx.fillStyle = hex(mix(ink, page, 0.45));
+      ctx.textAlign = "center";
+      ctx.textBaseline = "alphabetic";
+      for (let c = 0; c < GRID.cols; c++) ctx.fillText(COL_LABELS[c], px(c * RW + RW / 2), py(-GROUNDS_REACH) + 7);
+      ctx.textAlign = "left";
+      for (let r = 0; r < GRID.rows; r++) ctx.fillText(ROW_LABELS[r], px(-GROUNDS_REACH) + 1, py(r * RD + RD / 2) + 3);
     }
 
     // Camera footprint on the floor plane, clipped to the plan including the sidewalk.
@@ -1146,8 +1291,8 @@ export class Ui {
 
     const hall = halls.find((x) => x.id === selectedHall);
     this.mapNote.textContent = hall
-      ? `${hall.name} · ${hall.tagline}`
-      : `The block · ${halls.length} halls`;
+      ? `${hall.ref} · ${hall.name}`
+      : `The block · ${labs.length} labs`;
   }
 
   /** North, scale and the sheet's own particulars, to the right of the plan. */
@@ -1222,7 +1367,7 @@ export class Ui {
     ctx.textAlign = "left";
     ctx.fillStyle = soft;
     const fx = x0 + 2 * r + 14;
-    ctx.fillText(`${halls.length} HALLS`, fx, top + 40);
+    ctx.fillText(`${labs.length} LABS`, fx, top + 40);
     ctx.fillText(`${GRID.cols} x ${GRID.rows} GRID`, fx, top + 52);
 
     // Scale bar, reading the camera: a round number of metres, drawn the
@@ -1324,22 +1469,58 @@ const WORDS = [
   "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty",
 ];
 
-/** A count as it is written in prose, which the building will outgrow at twenty-one. */
-function inWords(n: number): string {
-  return WORDS[n] ?? String(n);
+/** A count as it is written in prose, which reaches as far as the building has had to. */
+function inWords(n: number, capital = false): string {
+  const tens = ["", "", "twenty", "thirty", "forty", "fifty", "sixty"];
+  const word = WORDS[n] ?? (n < 70 ? `${tens[Math.floor(n / 10)]}${n % 10 ? `-${WORDS[n % 10]}` : ""}` : String(n));
+  return capital ? word.charAt(0).toUpperCase() + word.slice(1) : word;
 }
 
-function describe(person: Person): string {
-  switch (person.activity) {
-    case "walk": return "Crossing the floor";
-    case "talk": return "Talking to someone";
-    case "rest": return "Standing in the corridor";
-    case "read": return "Reading";
-    case "watch": return "Watching";
-    default: return "At a station";
+/** What a figure is doing and where, in a line. */
+function describe(person: Person, people: Person[]): string {
+  const here = roomIdAt(person.x, person.y);
+  const room = halls.find((h) => h.id === here);
+  const home = person.hallId === here;
+  const inRoom = room && !home ? ` in ${roomPhrase(room)}` : "";
+  if (person.presence < 0.5) return "Has left the building";
+  if (person.activity === "walk") {
+    const to = halls.find((h) => h.id === person.goalHall);
+    if (person.goalStation === "exit") return "Leaving by the open frame";
+    return to && to.id !== person.hallId ? `On the way to ${roomPhrase(to)}` : "Crossing the floor";
+  }
+  if (person.activity === "talk") {
+    const other = people.find((p) => `${p.hallId}/${p.id}` === person.talkingTo);
+    return other ? `Talking to ${other.short ?? other.name}${inRoom}` : `Talking${inRoom}`;
+  }
+  switch (person.pose) {
+    case "type": return person.seat > 0 ? `At a desk${inRoom}` : `At a bench${inRoom}`;
+    case "eat": return `Eating${inRoom}`;
+    case "run": return `On a treadmill${inRoom}`;
+    case "bike": return `On a bike${inRoom}`;
+    case "row": return `Rowing${inRoom}`;
+    case "lift": return `Lifting${inRoom}`;
+    case "stretch": return `Stretching${inRoom}`;
+    case "punch": return `At the bag${inRoom}`;
+    case "write": return `Writing on a board${inRoom}`;
+    case "present": return `On the stage${inRoom}`;
+    case "watch": return `Watching${inRoom}`;
+    case "read": return `Reading${inRoom}`;
+    case "pour": return `Working the counter${inRoom}`;
+    case "sit": return person.id === CHECKPOINT ? `Sitting a lesson${inRoom}` : `Sitting${inRoom}`;
+    default: return person.id === CHECKPOINT && here === "pretraining" ? "Pretraining in the pod" : `Standing${inRoom}`;
   }
 }
 
+/** "the Canteen", "Anthropic's hall": how a sentence names a room. */
+function roomPhrase(room: HallSpec): string {
+  return room.kind === "commons" ? `the ${room.name.replace(/^The /, "")}` : `${room.name}'s hall`;
+}
+
+function roomIdAt(x: number, y: number): string | null {
+  const col = Math.floor(x / RW);
+  const row = Math.floor(y / RD);
+  return SLOTS.find((s) => s.col === col && s.row === row)?.room.id ?? null;
+}
 
 function rgba(c: { r: number; g: number; b: number }, a: number): string {
   return `rgba(${c.r | 0}, ${c.g | 0}, ${c.b | 0}, ${a})`;

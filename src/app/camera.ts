@@ -3,8 +3,10 @@ import type { Camera, Vec3, Yaw } from "../engine/types";
 
 export type Insets = { top: number; right: number; bottom: number; left: number };
 
-// Low enough that the whole block genuinely fits, sidewalk and all.
-const MIN_S = 1.1;
+// Low enough that the whole block genuinely fits, sidewalk and all, on a
+// phone's width. It was 1.1 for a block of four by three; eight by six needs
+// about half that before the cover's plate stops cutting off the east end.
+const MIN_S = 0.5;
 const MAX_S = 120;
 
 /**

@@ -17,10 +17,12 @@ import { Rig } from "./app/camera";
 import { clearSettings, DEFAULTS, loadSettings, saveSettings, type Settings } from "./app/settings";
 import { LOOKING_FROM, Ui, type Selection } from "./app/ui";
 import {
-  buildBlock, collectLamps, halls, hallById, hallOrigin, hallPoints, layoutNav, personPoints, washFor, blockPoints,
+  buildBlock, collectLamps, GRID, halls, roomAt, hallById, hallOrigin, hallPoints, layoutNav, personPoints, washFor, blockPoints,
+  roomsPoints, slotAt, slotOf,
 } from "./world/building";
 import { Crowd } from "./world/crowd";
-import type { BuildCtx } from "./world/ctx";
+import { lodFor, type BuildCtx } from "./world/ctx";
+import { REGIONS } from "./world/regions";
 import { MAT, retune } from "./world/materials";
 import { FLOOR_Z, RD, RW } from "./world/metrics";
 import { drawPerson, type Person } from "./world/person";
@@ -61,6 +63,7 @@ const hooks = {
   goOverview: () => showOverview(),
   goHall: (id: string) => showHall(id),
   goPerson: (hallId: string, personId: string) => showPerson(hallId, personId),
+  goRegion: (id: string) => showRegion(id),
   stepPerson: (delta: number) => cyclePerson(delta),
   rotate: (delta: number) => {
     const yaw = rig.rotate(delta);
@@ -258,6 +261,23 @@ function showHall(id: string, immediate = false): void {
   afterSelect();
 }
 
+/**
+ * A part of the building framed as a whole: the Bay, Europe, the commons.
+ * Between one room and the whole block, which with forty rooms is the view
+ * most people actually want.
+ */
+function showRegion(id: string): void {
+  const region = REGIONS.find((r) => r.id === id);
+  if (!region) return;
+  const rooms = region.rooms.map((roomId) => hallById(roomId)).filter((h): h is NonNullable<typeof h> => Boolean(h));
+  if (!rooms.length) return;
+  selection = { kind: "overview" };
+  rig.insets = insets();
+  rig.frame(roomsPoints(rooms), 0.96, false, 1.02);
+  afterSelect();
+  ui.toast(region.name);
+}
+
 function showPerson(hallId: string, personId: string, immediate = false): void {
   const person = crowd.at(hallId, personId);
   if (!person) return showHall(hallId, immediate);
@@ -275,7 +295,8 @@ function go(target: Selection, immediate = false): void {
 
 function cyclePerson(delta: number): void {
   const hall = hallById(currentHallId());
-  const list = hall ? hall.people.map((p) => crowd.at(hall.id, p.id)!).filter(Boolean) : crowd.people;
+  const cast = hall ? [...hall.people, ...hall.staff] : [];
+  const list = hall ? cast.map((p) => crowd.at(hall.id, p.id)!).filter((p) => p && p.presence > 0.5) : crowd.people;
   if (!list.length) return;
   const current = selectedPerson();
   const at = current ? list.findIndex((p) => p.id === current.id) : -1;
@@ -293,7 +314,7 @@ function afterSelect(): void {
 function renderCard(): void {
   const person = selectedPerson();
   const hall = hallById(currentHallId());
-  const list = hall ? hall.people : [];
+  const list = hall ? [...hall.people, ...hall.staff] : [];
   const index = person ? list.findIndex((p) => p.id === person.id) : -1;
   ui.renderDossier(selection, person, index, list.length);
 }
@@ -509,7 +530,6 @@ window.addEventListener("keydown", (event) => {
     return;
   }
   const pressed = event.key.length === 1 ? event.key.toLowerCase() : event.key;
-  const hall = halls.find((h) => h.key === pressed);
   if (ui.atGate) {
     // The keys the schedule prints beside each hall open the door onto it.
     // There is no zoom here: the plate is framed to marks on the sheet.
@@ -518,8 +538,6 @@ window.addEventListener("keydown", (event) => {
     } else if (event.key === "Enter" && !(event.target instanceof HTMLButtonElement)) {
       event.preventDefault();
       ui.enter();
-    } else if (hall && !event.metaKey && !event.ctrlKey && !event.altKey) {
-      ui.enter({ kind: "hall", hallId: hall.id });
     } else if (pressed === "s") {
       ui.toggleSheet(ui.settingsSheet);
     } else if (pressed === "q") {
@@ -529,7 +547,11 @@ window.addEventListener("keydown", (event) => {
     }
     return;
   }
-  if (hall) return showHall(hall.id);
+  if (event.key.startsWith("Arrow") && !event.metaKey && !event.ctrlKey && !event.altKey) {
+    event.preventDefault();
+    stepRoom(event.key);
+    return;
+  }
   switch (event.key) {
     case "0": showOverview(); break;
     case "q": case "Q": hooks.rotate(-1); break;
@@ -549,6 +571,41 @@ window.addEventListener("keydown", (event) => {
     case "p": case "P": hooks.togglePause(); break;
   }
 });
+
+/**
+ * Walks the view to the next room in the direction of an arrow key, as the
+ * building is seen: up the screen is up the screen whichever way the camera
+ * has been turned. From the whole block it starts at the court.
+ */
+function stepRoom(key: string): void {
+  const current = hallById(currentHallId()) ?? halls.find((h) => h.open) ?? halls[0];
+  const slot = slotOf(current);
+  // The plan's rows and columns run along the screen's diagonals, so the
+  // arrows are a d-pad turned by an eighth: up is the upper-right diagonal,
+  // which is view-space (0, -1). Each row below is that direction taken back
+  // through unrotX/unrotY for the four quarter turns.
+  const yaw = rig.cam.yaw;
+  const table: Record<string, [number, number][]> = {
+    ArrowUp: [[0, -1], [1, 0], [0, 1], [-1, 0]],
+    ArrowDown: [[0, 1], [-1, 0], [0, -1], [1, 0]],
+    ArrowLeft: [[-1, 0], [0, -1], [1, 0], [0, 1]],
+    ArrowRight: [[1, 0], [0, 1], [-1, 0], [0, -1]],
+  };
+  const step = table[key]?.[yaw];
+  if (!step) return;
+  let col = slot.col + (step[0] > 0 ? current.span.cols - 1 : 0);
+  let row = slot.row + (step[1] > 0 ? current.span.rows - 1 : 0);
+  for (let i = 0; i < Math.max(GRID.cols, GRID.rows); i++) {
+    col += step[0];
+    row += step[1];
+    const next = slotAt(col, row);
+    if (!next) return;
+    if (next.room.id !== current.id) {
+      showHall(next.room.id);
+      return;
+    }
+  }
+}
 
 function stepRate(direction: number): void {
   const steps = [0, 0.5, 1, 4, 15, 60, 240];
@@ -663,6 +720,10 @@ function labelPlate(text: string, x: number, y: number, z: number, size: number)
   label(text, x, y, z + rise * 3.5, size, MAT.sheet);
 }
 
+function roomAtPoint(x: number, y: number): string | null {
+  return roomAt(x, y)?.id ?? null;
+}
+
 /* -------------------------------------------------------------------- loop */
 
 let last = performance.now();
@@ -708,6 +769,7 @@ function render(dt: number): void {
     // At the gate the hall named on the sheet is lit and the rest of the
     // block is washed back, the same wash a hall gets when it is entered.
     focus: ui.atGate ? gateFocus() : currentHallId(),
+    lod: lodFor(rig.cam.s),
   };
 
   const page = backdrop(ink, sky.daylight);
@@ -722,7 +784,10 @@ function render(dt: number): void {
   t = mark();
   const selected = selectedPerson();
   for (const person of crowd.people) {
-    painter.wash = washFor(ctx, person.hallId);
+    // A figure is washed with the room it is standing in, not the room it
+    // belongs to: a model eating in the canteen is part of the canteen.
+    const room = roomAtPoint(person.x, person.y);
+    painter.wash = washFor(ctx, room ?? person.hallId);
     drawPerson(ctx, person, person === selected, person === hoveredPerson);
   }
   painter.wash = 0;
@@ -776,7 +841,10 @@ function render(dt: number): void {
 }
 
 function loop(now: number): void {
-  const dt = Math.min(0.05, (now - last) / 1000);
+  // The first frame's timestamp can come before the moment the script took
+  // as its start, and a clock run backwards is not something the world is
+  // built to survive.
+  const dt = Math.max(0, Math.min(0.05, (now - last) / 1000));
   last = now;
   const started = performance.now();
   advance(dt);
@@ -930,7 +998,14 @@ readHash();
 ui.renderClock(!clock.running);
 
 if (import.meta.env.DEV) {
-  // A handle for driving a frame by hand while profiling.
-  (window as unknown as Record<string, unknown>).halls = { advance, render, raster, painter, rig, clock, crowd, settings, perf };
+  // A handle for driving a frame by hand while profiling. `pin` holds the
+  // pixel size where it is put, so a still is not coarsened halfway through
+  // by a slow frame on the machine taking it.
+  const pin = (value: number) => {
+    relief = value;
+    reliefClock = -Infinity;
+    resize();
+  };
+  (window as unknown as Record<string, unknown>).halls = { advance, render, raster, painter, rig, clock, crowd, settings, perf, pin };
 }
 requestAnimationFrame(loop);

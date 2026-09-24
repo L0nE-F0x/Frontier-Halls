@@ -24,10 +24,21 @@ describe("palettes", () => {
     }
   });
 
-  it("gives every palette three accents and distinct ids", () => {
+  it("gives every palette at least three accents and distinct ids", () => {
     const ids = new Set(PALETTES.map((p) => p.id));
     expect(ids.size).toBe(PALETTES.length);
-    for (const p of PALETTES) expect(p.accents).toHaveLength(3);
+    for (const p of PALETTES) {
+      expect(p.accents.length).toBeGreaterThanOrEqual(3);
+      expect(p.accents.length).toBeLessThanOrEqual(5);
+    }
+  });
+
+  it("resolves a red and a green in every palette, from its own inks", () => {
+    for (const p of PALETTES) {
+      const own = p.accents.map((c) => `${c.r},${c.g},${c.b}`);
+      expect(own, `${p.id} red`).toContain(`${p.roles.red.r},${p.roles.red.g},${p.roles.red.b}`);
+      expect(own, `${p.id} green`).toContain(`${p.roles.green.r},${p.roles.green.g},${p.roles.green.b}`);
+    }
   });
 });
 

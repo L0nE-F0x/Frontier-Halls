@@ -59,15 +59,13 @@ export class Lighting {
   /** Extra multiplier on every lamp, so the halls can dim as a group. */
   lampGain = 1;
   readonly out = new Float32Array(3);
-  private regionFrom = -Infinity;
-  private regionTo = Infinity;
+  private region = [-Infinity, Infinity, -Infinity, Infinity];
 
   reset(sky: Sky): void {
     this.sky = sky;
     this.all.length = 0;
     this.lamps = this.all;
-    this.regionFrom = -Infinity;
-    this.regionTo = Infinity;
+    this.region = [-Infinity, Infinity, -Infinity, Infinity];
   }
 
   addLamp(lamp: Lamp): void {
@@ -75,17 +73,23 @@ export class Lighting {
   }
 
   /**
-   * Narrows the lamp list to the slice of the block about to be drawn. Shading
+   * Narrows the lamp list to the part of the block about to be drawn. Shading
    * is per vertex and the block is wide, so this is the difference between
-   * testing two lamps and testing all of them, tens of thousands of times.
+   * testing a handful of lamps and testing all of them, tens of thousands of
+   * times.
+   *
+   * It narrows on both axes. Filtering by x alone was enough for a block three
+   * rows deep; with six rows every column's slice carried every lamp in the
+   * column, and a room was shaded against lamps five rooms away.
    */
-  setRegion(xFrom: number, xTo: number): void {
-    if (xFrom === this.regionFrom && xTo === this.regionTo) return;
-    this.regionFrom = xFrom;
-    this.regionTo = xTo;
+  setRegion(xFrom: number, xTo: number, yFrom = -Infinity, yTo = Infinity): void {
+    const r = this.region;
+    if (xFrom === r[0] && xTo === r[1] && yFrom === r[2] && yTo === r[3]) return;
+    this.region = [xFrom, xTo, yFrom, yTo];
     const near: Lamp[] = [];
     for (const lamp of this.all) {
       if (lamp.x + lamp.radius < xFrom || lamp.x - lamp.radius > xTo) continue;
+      if (lamp.y + lamp.radius < yFrom || lamp.y - lamp.radius > yTo) continue;
       near.push(lamp);
     }
     this.lamps = near;
@@ -93,8 +97,7 @@ export class Lighting {
 
   clearRegion(): void {
     this.lamps = this.all;
-    this.regionFrom = -Infinity;
-    this.regionTo = Infinity;
+    this.region = [-Infinity, Infinity, -Infinity, Infinity];
   }
 
   shade(base: RGB, nx: number, ny: number, nz: number, x: number, y: number, z: number, emissive: number): void {

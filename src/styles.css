@@ -336,7 +336,8 @@ button {
   padding: 3px 5px;
   background: var(--panel);
   border: 1px solid var(--panel-line);
-  z-index: 4;
+  /* Above the plan and the toolbar, so a region's list can open over them. */
+  z-index: 6;
 }
 
 /* Halls scroll; the whole-block button stays put as the row grows. */
@@ -363,6 +364,72 @@ button {
 }
 
 #dock button[data-hall=""] { flex: none; }
+
+/* A region's tab carries a strip of its labs' colours. */
+#dock .swatches {
+  display: inline-flex;
+  gap: 1px;
+  align-self: center;
+}
+#dock .swatches i {
+  width: 4px;
+  height: 9px;
+}
+#dock button[aria-expanded="true"] {
+  color: var(--ink);
+  border-color: var(--panel-line);
+  background: var(--paper-2);
+}
+
+/* The rooms of the region that is open, above the dock. */
+#dock .dock-menu {
+  position: absolute;
+  left: -1px;
+  bottom: calc(100% + 6px);
+  min-width: 320px;
+  max-width: min(640px, calc(100vw - var(--gap) * 2));
+  padding: 4px 4px 6px;
+  background: var(--panel);
+  border: 1px solid var(--panel-line);
+  box-shadow: var(--shadow);
+}
+#dock .dock-menu[hidden] { display: none; }
+#dock .dock-menu-head {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 10px 7px;
+  color: var(--ink);
+  font-size: 15px;
+  border-bottom: 1px solid var(--panel-line);
+}
+#dock .dock-menu-head .k { align-self: center; }
+#dock .dock-menu-head:hover .k { color: var(--accent); opacity: 1; }
+#dock .dock-menu-list {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+#dock .dock-menu-list.two { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 4px; }
+#dock .dock-menu-list button {
+  display: grid;
+  grid-template-columns: 8px auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  width: 100%;
+  gap: 8px;
+  padding: 5px 8px;
+  font-size: 14px;
+}
+#dock .dock-menu-list .where {
+  font-size: 12px;
+  font-style: italic;
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#dock .dock-menu-list button:hover { background: var(--paper-2); }
 
 #dock button {
   display: flex;
@@ -1198,21 +1265,43 @@ body.at-gate #view.pointing { cursor: pointer; }
 }
 .gate-index h2 { margin: 0; }
 
+/*
+ * Forty-one rooms in two columns, a region at a time. One long column of
+ * forty-one ran off the bottom of the sheet and dragged the plate with it.
+ */
 .gate-halls {
   list-style: none;
   margin: 12px 0 0;
   padding: 0;
   border-top: 1px solid var(--panel-line);
+  columns: 2;
+  column-gap: 14px;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
-.gate-halls li { border-bottom: 1px solid color-mix(in srgb, var(--ink) 9%, transparent); }
+.gate-halls li {
+  border-bottom: 1px solid color-mix(in srgb, var(--ink) 9%, transparent);
+  break-inside: avoid;
+}
+.gate-halls li.gate-region {
+  padding: 9px 6px 3px;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  border-bottom-color: var(--panel-line);
+  break-after: avoid;
+}
 
 .gate-halls button {
   display: grid;
-  grid-template-columns: 14px 8px auto minmax(8px, 1fr) auto;
+  grid-template-columns: 18px 8px minmax(0, 1fr);
   align-items: baseline;
-  column-gap: 8px;
+  column-gap: 7px;
   width: 100%;
-  padding: 7px 8px 7px 6px;
+  padding: 3px 6px 3px 4px;
   text-align: left;
   color: var(--ink);
 }
@@ -1225,12 +1314,22 @@ body.at-gate #view.pointing { cursor: pointer; }
 .gate-halls .swatch {
   width: 8px;
   height: 8px;
-  align-self: center;
+  align-self: start;
+  margin-top: 0.42em;
 }
+/*
+ * Two columns leave a long name like Thinking Machines about three
+ * characters short on a laptop. It turns onto a second line rather than
+ * losing its end to an ellipsis: a lab's name is the one thing on the row.
+ */
 .gate-halls .n {
-  font-size: 15.5px;
-  white-space: nowrap;
+  font-size: 14px;
+  line-height: 1.2;
+  overflow-wrap: break-word;
 }
+/* No room for the city here; the caption under the plate names it when a row is pointed at. */
+.gate-halls .leader,
+.gate-halls .t { display: none; }
 .gate-halls .leader {
   align-self: end;
   margin-bottom: 0.42em;
@@ -1438,23 +1537,23 @@ body.arriving #tools { animation: chrome-in 620ms cubic-bezier(0.2, 0.7, 0.2, 1)
   .gate-index h2 { display: none; }
   .gate-halls {
     display: grid;
-    grid-template-columns: repeat(5, auto);
-    justify-content: space-between;
+    columns: auto;
+    grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
     margin: 0;
     border-top: 0;
+    overflow: visible;
   }
   .gate-halls li { border-bottom: 0; }
+  .gate-halls li.gate-region { display: none; }
   .gate-halls button {
     grid-template-columns: auto auto minmax(0, 1fr);
-    padding: 6px 6px;
+    padding: 4px 5px;
   }
   .gate-halls .n {
     font-size: 14.5px;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .gate-halls .leader,
-  .gate-halls .t { display: none; }
   .gate-inks {
     grid-template-columns: auto auto minmax(0, 1fr) auto;
     grid-template-areas: "label name note chips";
@@ -1485,7 +1584,8 @@ body.arriving #tools { animation: chrome-in 620ms cubic-bezier(0.2, 0.7, 0.2, 1)
   .gate-notes { margin-bottom: 16px; padding-top: 10px; }
   .gate-notes li { font-size: 13.5px; margin-top: 3px; }
   .gate-index { padding-top: 24px; }
-  .gate-halls button { padding-top: 5px; padding-bottom: 5px; }
+  .gate-halls button { padding-top: 2px; padding-bottom: 2px; }
+  .gate-halls li.gate-region { padding-top: 6px; }
   .gate-enter { padding-top: 12px; padding-bottom: 12px; }
   .gate-facts div, .gate-drawn { padding-top: 8px; padding-bottom: 8px; }
 }

@@ -3,7 +3,7 @@ import { hash2, noise1 } from "../../engine/rng";
 import { contactShadow, obox } from "../../engine/shapes";
 import { worldText } from "../../engine/text";
 import type { RGB } from "../../engine/types";
-import type { BuildCtx } from "../ctx";
+import { shows, type BuildCtx } from "../ctx";
 import { MAT } from "../materials";
 import { FLOOR_Z } from "../metrics";
 import { DESK_H } from "./furniture";
@@ -24,8 +24,10 @@ export function monitor(
   const h = 0.52 * size;
   const ca = Math.cos(angle);
   const sa = Math.sin(angle);
-  p.cylinder(x, y, z, 0.15 * size, 0.11 * size, 0.04, MAT.darkMetal, 7);
-  obox(p, x, y, z + 0.04, 0.06, 0.1, 0.2 * size, angle, MAT.darkMetal);
+  if (ctx.lod > 1) {
+    p.cylinder(x, y, z, 0.15 * size, 0.11 * size, 0.04, MAT.darkMetal, 7);
+    obox(p, x, y, z + 0.04, 0.06, 0.1, 0.2 * size, angle, MAT.darkMetal);
+  }
   obox(p, x, y, z + 0.2 * size, w, 0.07, h, angle, MAT.darkMetal);
 
   const flicker = 0.86 + noise1(time * 3 + seed) * 0.14;
@@ -36,6 +38,7 @@ export function monitor(
     emissive: 0.72 * flicker,
     glow: 0.62 * flicker,
   });
+  if (ctx.lod < 2) return;
 
   // Rows of "output", scrolling slowly.
   const rows = 6;
@@ -55,17 +58,19 @@ export function monitor(
 }
 
 export function keyboard(ctx: BuildCtx, x: number, y: number, angle: number, z = DESK_Z): void {
-  const { p } = ctx;
-  obox(p, x, y, z, 0.54, 0.2, 0.035, angle, MAT.darkMetal, { top: scale(MAT.darkMetal, 1.3) });
+  if (ctx.lod < 2) return;
+  obox(ctx.p, x, y, z, 0.54, 0.2, 0.035, angle, MAT.darkMetal, { top: scale(MAT.darkMetal, 1.3) });
 }
 
 export function mug(ctx: BuildCtx, x: number, y: number, tone: RGB = MAT.terracotta, z = DESK_Z): void {
+  if (ctx.lod < 2) return;
   const { p } = ctx;
   p.cylinder(x, y, z, 0.075, 0.075, 0.13, tone, 8, { top: scale(tone, 0.55) });
   p.box(x + 0.07, y - 0.015, z + 0.04, 0.035, 0.03, 0.06, tone);
 }
 
 export function papers(ctx: BuildCtx, x: number, y: number, count = 3, seed = 3, z = DESK_Z): void {
+  if (ctx.lod < 2) return;
   const { p } = ctx;
   for (let i = 0; i < count; i++) {
     const n = hash2(seed + i, i * 7);
@@ -83,6 +88,7 @@ export function papers(ctx: BuildCtx, x: number, y: number, count = 3, seed = 3,
 }
 
 export function books(ctx: BuildCtx, x: number, y: number, count = 4, seed = 9, z = DESK_Z): void {
+  if (ctx.lod < 2) return;
   const { p } = ctx;
   let cz = z;
   for (let i = 0; i < count; i++) {
@@ -98,21 +104,113 @@ export function books(ctx: BuildCtx, x: number, y: number, count = 4, seed = 9, 
 export function plant(ctx: BuildCtx, x: number, y: number, size = 1): void {
   const { p, time } = ctx;
   const pot = 0.24 * size;
-  p.cylinder(x, y, FLOOR_Z, pot, pot, 0.34 * size, MAT.terracotta, 9, { top: MAT.soil });
-  p.cylinder(x, y, FLOOR_Z + 0.34 * size - 0.03, pot * 1.08, pot * 1.08, 0.05, scale(MAT.terracotta, 0.85), 9);
+  p.cylinder(x, y, FLOOR_Z, pot, pot, 0.34 * size, MAT.terracotta, ctx.lod > 1 ? 9 : 6, { top: MAT.soil });
   const base = FLOOR_Z + 0.34 * size;
-  for (let i = 0; i < 7; i++) {
-    const a = (i / 7) * Math.PI * 2 + hash2(x, i) * 1.4;
+  if (ctx.lod === 0) {
+    p.cylinder(x, y, base, pot * 1.6, pot * 1.6, 0.6 * size, MAT.leaf, 6);
+    ctx.nav?.blockRect(x - pot, y - pot, pot * 2, pot * 2, 0.15);
+    return;
+  }
+  if (ctx.lod > 1) p.cylinder(x, y, FLOOR_Z + 0.34 * size - 0.03, pot * 1.08, pot * 1.08, 0.05, scale(MAT.terracotta, 0.85), 9);
+  const leaves = ctx.lod > 1 ? 7 : 4;
+  for (let i = 0; i < leaves; i++) {
+    const a = (i / leaves) * Math.PI * 2 + hash2(x, i) * 1.4;
     const lean = 0.26 + hash2(i, y) * 0.34;
     const sway = Math.sin(time * 0.6 + i * 1.3 + x) * 0.03;
     const tipX = x + Math.cos(a) * lean * size + sway;
     const tipY = y + Math.sin(a) * lean * size;
     const tipZ = base + (0.38 + hash2(i, x) * 0.42) * size;
     p.line(x, y, base, tipX, tipY, tipZ, MAT.leaf, 3.4 * size, { emissive: 0.32 });
-    p.line(tipX, tipY, tipZ, tipX + Math.cos(a) * 0.1, tipY + Math.sin(a) * 0.1, tipZ - 0.06, scale(MAT.leaf, 1.2), 2.4 * size, { emissive: 0.3 });
+    if (ctx.lod > 1) {
+      p.line(tipX, tipY, tipZ, tipX + Math.cos(a) * 0.1, tipY + Math.sin(a) * 0.1, tipZ - 0.06, scale(MAT.leaf, 1.2), 2.4 * size, { emissive: 0.3 });
+    }
   }
   contactShadow(p, x, y, FLOOR_Z, pot * 1.6, pot, ctx.shadowStrength * 0.5, MAT.ink);
   ctx.nav?.blockRect(x - pot, y - pot, pot * 2, pot * 2, 0.15);
+}
+
+/** A tall floor plant: a trunk and a crown of fronds. The lobby kind. */
+export function palm(ctx: BuildCtx, x: number, y: number, size = 1): void {
+  const { p, time } = ctx;
+  const pot = 0.3 * size;
+  p.cylinder(x, y, FLOOR_Z, pot, pot, 0.44 * size, MAT.white, ctx.lod > 1 ? 9 : 6, { top: MAT.soil });
+  const top = FLOOR_Z + 0.44 * size + 1.3 * size;
+  p.line(x, y, FLOOR_Z + 0.44 * size, x + 0.05, y, top, MAT.woodDark, 3.5 * size, { emissive: 0.2 });
+  if (ctx.lod === 0) {
+    p.cylinder(x, y, top - 0.3, 0.8 * size, 0.8 * size, 0.4, MAT.leaf, 6);
+  } else {
+    const fronds = ctx.lod > 1 ? 8 : 5;
+    for (let i = 0; i < fronds; i++) {
+      const a = (i / fronds) * Math.PI * 2 + hash2(x, y + i) * 0.5;
+      const sway = Math.sin(time * 0.5 + i + x) * 0.04;
+      const mx = x + Math.cos(a) * 0.45 * size;
+      const my = y + Math.sin(a) * 0.45 * size;
+      const ex = x + Math.cos(a) * 0.95 * size + sway;
+      const ey = y + Math.sin(a) * 0.95 * size;
+      p.line(x + 0.05, y, top, mx, my, top + 0.18 * size, MAT.leaf, 3.2 * size, { emissive: 0.3 });
+      p.line(mx, my, top + 0.18 * size, ex, ey, top - 0.28 * size, scale(MAT.leaf, 1.12), 2.6 * size, { emissive: 0.3 });
+    }
+  }
+  contactShadow(p, x, y, FLOOR_Z, pot * 1.8, pot * 1.1, ctx.shadowStrength * 0.5, MAT.ink);
+  ctx.nav?.blockRect(x - pot, y - pot, pot * 2, pot * 2, 0.12);
+}
+
+/** A bonsai on a low stand. */
+export function bonsai(ctx: BuildCtx, x: number, y: number, z = FLOOR_Z): void {
+  const { p } = ctx;
+  p.box(x - 0.3, y - 0.2, z, 0.6, 0.4, 0.12, MAT.woodDark);
+  if (!shows(ctx, 0.6, 2)) return;
+  p.line(x, y, z + 0.12, x - 0.12, y, z + 0.34, MAT.woodDark, 3, { emissive: 0.2 });
+  p.line(x - 0.12, y, z + 0.34, x + 0.14, y + 0.04, z + 0.52, MAT.woodDark, 2.4, { emissive: 0.2 });
+  p.cylinder(x - 0.16, y, z + 0.4, 0.2, 0.14, 0.12, MAT.leaf, 7);
+  p.cylinder(x + 0.14, y + 0.04, z + 0.52, 0.18, 0.13, 0.1, scale(MAT.leaf, 1.1), 7);
+}
+
+/** A column cactus in a clay pot. */
+export function cactus(ctx: BuildCtx, x: number, y: number, size = 1): void {
+  const { p } = ctx;
+  p.cylinder(x, y, FLOOR_Z, 0.22 * size, 0.22 * size, 0.3 * size, MAT.terracotta, 7, { top: MAT.soil });
+  p.cylinder(x, y, FLOOR_Z + 0.3 * size, 0.1 * size, 0.1 * size, 0.9 * size, MAT.leaf, 7, { top: scale(MAT.leaf, 1.1) });
+  if (ctx.lod > 1) {
+    p.box(x + 0.08 * size, y - 0.04, FLOOR_Z + 0.65 * size, 0.2 * size, 0.08, 0.07, MAT.leaf);
+    p.box(x + 0.22 * size, y - 0.04, FLOOR_Z + 0.65 * size, 0.08, 0.08, 0.28 * size, MAT.leaf);
+  }
+  ctx.nav?.blockRect(x - 0.22 * size, y - 0.22 * size, 0.44 * size, 0.44 * size, 0.1);
+}
+
+/** A fir in a tub. The Black Forest's, brought indoors. */
+export function fir(ctx: BuildCtx, x: number, y: number, size = 1): void {
+  const { p, time } = ctx;
+  p.cylinder(x, y, FLOOR_Z, 0.34 * size, 0.34 * size, 0.36 * size, MAT.woodDark, 8, { top: MAT.soil });
+  const sway = Math.sin(time * 0.4 + x) * 0.02;
+  const tiers = ctx.lod > 1 ? 4 : 2;
+  for (let i = 0; i < tiers; i++) {
+    const t = i / tiers;
+    const r = (0.62 - t * 0.44) * size;
+    p.cylinder(x + sway * i, y, FLOOR_Z + (0.36 + i * (1.5 / tiers)) * size, r, r, (1.7 / tiers) * size, scale(MAT.leaf, 0.86 + t * 0.2), 7, {
+      top: scale(MAT.leaf, 1.05),
+    });
+  }
+  ctx.nav?.blockRect(x - 0.34 * size, y - 0.34 * size, 0.68 * size, 0.68 * size, 0.1);
+}
+
+/** Tall grasses in a long trough, for a room that wants a soft edge. */
+export function planter(ctx: BuildCtx, x: number, y: number, w: number, d: number, tone: RGB = MAT.concrete): void {
+  const { p, time } = ctx;
+  p.box(x, y, FLOOR_Z, w, d, 0.5, tone, { top: MAT.soil });
+  if (ctx.lod === 0) {
+    p.box(x + 0.1, y + 0.1, FLOOR_Z + 0.5, w - 0.2, d - 0.2, 0.4, MAT.leaf);
+  } else {
+    const n = Math.round((w * d) / (ctx.lod > 1 ? 0.12 : 0.4));
+    for (let i = 0; i < n; i++) {
+      const u = hash2(i, x * 3) * (w - 0.2) + 0.1;
+      const v = hash2(y * 5, i) * (d - 0.2) + 0.1;
+      const sway = Math.sin(time * 0.8 + i + x) * 0.05;
+      const hgt = 0.4 + hash2(i, i + 3) * 0.5;
+      p.line(x + u, y + v, FLOOR_Z + 0.5, x + u + sway, y + v, FLOOR_Z + 0.5 + hgt, scale(MAT.leaf, 0.9 + hash2(i, 7) * 0.3), 2, { emissive: 0.3 });
+    }
+  }
+  ctx.nav?.blockRect(x, y, w, d, 0.08);
 }
 
 /** Sign screwed to a wall. The only prose in the world. */
@@ -128,6 +226,7 @@ export function sign(
   const w = text.length * size * 6 + size * 3;
   const h = size * 11;
   p.box(x - w / 2, y - (facingY < 0 ? 0.05 : 0), z - h / 2, w, 0.05, h, tone, { emissive: 0.3 });
+  if (ctx.lod < 1) return;
   worldText(p, text, x, y - facingY * 0.02, z + size * 3.5, 1, 0, 0, 0, 0, 1, size, MAT.ink, {
     align: "center", emissive: 0.85, bias: 0.05,
   });
@@ -141,6 +240,7 @@ export function floorTape(
   dashed = false,
 ): void {
   const { p } = ctx;
+  if (ctx.lod === 0) return;
   const opts = { emissive: 0.4, bias: 0.018 };
   if (!dashed) {
     p.plate(x, y, FLOOR_Z, w, 0.09, tone, opts);
@@ -185,7 +285,7 @@ export function robotArm(ctx: BuildCtx, x: number, y: number, z: number, phase: 
 
 /** Dust in the light. Only drawn where there is light to be in. */
 export function motes(ctx: BuildCtx, ox: number, oy: number, w: number, d: number, count: number): void {
-  if (ctx.quality < 2) return;
+  if (ctx.quality < 2 || ctx.lod < 2) return;
   const { p, time } = ctx;
   for (let i = 0; i < count; i++) {
     const n = hash2(ox + i, oy + i * 3);
@@ -202,7 +302,7 @@ export function motes(ctx: BuildCtx, ox: number, oy: number, w: number, d: numbe
 
 /** Slow curl of vapour from a vent or a mug. */
 export function steam(ctx: BuildCtx, x: number, y: number, z: number, strength: number): void {
-  if (ctx.quality < 1 || strength <= 0) return;
+  if (ctx.quality < 1 || strength <= 0 || ctx.lod < 2) return;
   const { p, time } = ctx;
   for (let i = 0; i < 5; i++) {
     const t = ((time * 0.35 + i * 0.2) % 1);
@@ -212,4 +312,32 @@ export function steam(ctx: BuildCtx, x: number, y: number, z: number, strength: 
       emissive: 1, alpha: (1 - t) * 0.3 * strength,
     });
   }
+}
+
+/** A framed picture on the north wall: a few blocks of colour, which is all a poster is at this size. */
+export function poster(ctx: BuildCtx, x: number, y: number, z: number, w: number, h: number, seed: number, tones?: RGB[]): void {
+  const { p } = ctx;
+  if (ctx.lod === 0) return;
+  p.box(x - 0.05, y, z - 0.05, w + 0.1, 0.05, h + 0.1, MAT.black);
+  p.box(x, y - 0.01, z, w, 0.04, h, MAT.paper, { emissive: 0.3 });
+  if (ctx.lod < 2) return;
+  const palette = tones ?? [MAT.lamp, MAT.led, MAT.seal, MAT.red, MAT.green];
+  for (let i = 0; i < 4; i++) {
+    const n = hash2(seed, i);
+    const m = hash2(i, seed * 3);
+    const bw = w * (0.2 + n * 0.5);
+    const bh = h * (0.15 + m * 0.4);
+    p.box(x + (w - bw) * m, y - 0.02, z + (h - bh) * n, bw, 0.02, bh, palette[(seed + i) % palette.length], { emissive: 0.5 });
+  }
+}
+
+/** Something to eat off. A tray with a plate and a cup on it. */
+export function tray(ctx: BuildCtx, x: number, y: number, z: number, seed: number): void {
+  if (ctx.lod < 2) return;
+  const { p } = ctx;
+  p.box(x - 0.24, y - 0.17, z, 0.48, 0.34, 0.02, MAT.darkMetal);
+  p.cylinder(x - 0.06, y, z + 0.02, 0.13, 0.13, 0.02, MAT.white, 8);
+  const food = [MAT.lamp, MAT.green, MAT.red, MAT.terracotta][Math.floor(hash2(seed, 3) * 4)];
+  p.cylinder(x - 0.06, y, z + 0.04, 0.08, 0.08, 0.03, food, 6);
+  p.cylinder(x + 0.14, y - 0.06, z + 0.02, 0.05, 0.05, 0.1, MAT.white, 6);
 }
