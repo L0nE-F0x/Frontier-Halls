@@ -33,6 +33,12 @@ export type BuildCtx = {
   shadowStrength: number;
   /** Set when a single hall is focused; others draw with less detail. */
   focus: string | null;
+  /**
+   * The focus the wash is moving away from, and how far it has moved (0..1).
+   * Absent, or at 1, the wash is simply the current focus's.
+   */
+  washFrom?: string | null;
+  washK?: number;
   /** Detail for this frame; see Lod. Always 2 while navigation is measured. */
   lod: Lod;
 };

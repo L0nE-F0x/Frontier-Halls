@@ -771,6 +771,17 @@ function advance(dt: number): void {
   }
 }
 
+/**
+ * The wash a focused room puts on the rest of the block, moved from one
+ * focus to the next over half a second instead of in a single frame.
+ */
+const wash: { from: string | null; to: string | null; since: number } = { from: null, to: null, since: -Infinity };
+
+function washProgress(): number {
+  const x = clamp01((time - wash.since) / 0.5);
+  return x * x * (3 - 2 * x);
+}
+
 /** Phase timings, filled only in development. */
 const perf = { build: 0, people: 0, labels: 0, flush: 0, post: 0, quant: 0, blit: 0, ui: 0 };
 const mark = import.meta.env.DEV ? () => performance.now() : () => 0;
@@ -783,6 +794,12 @@ function render(dt: number): void {
   collectLamps(lighting, lampMix);
 
   const sunDown = Math.max(0.35, sky.sunDir.z);
+  const focus = ui.atGate ? gateFocus() : currentHallId();
+  if (focus !== wash.to) {
+    wash.from = wash.to;
+    wash.to = focus;
+    wash.since = time;
+  }
   const ctx: BuildCtx = {
     p: painter,
     time,
@@ -796,7 +813,9 @@ function render(dt: number): void {
     shadowStrength: 0.22 + sky.daylight * 0.2 + lampMix * 0.22,
     // At the gate the hall named on the sheet is lit and the rest of the
     // block is washed back, the same wash a hall gets when it is entered.
-    focus: ui.atGate ? gateFocus() : currentHallId(),
+    focus,
+    washFrom: wash.from,
+    washK: washProgress(),
     lod: lodFor(rig.cam.s),
   };
 
@@ -1048,6 +1067,14 @@ if (import.meta.env.DEV) {
     reliefClock = -Infinity;
     resize();
   };
-  (window as unknown as Record<string, unknown>).halls = { advance, render, raster, painter, rig, clock, crowd, settings, perf, pin };
+  // Somewhere to go, as a click would go there: the camera glides, the room
+  // is washed and named. The press tools film the building through these.
+  const nav = {
+    block: () => showOverview(),
+    hall: (id: string) => showHall(id),
+    region: (id: string) => showRegion(id),
+    person: (hallId: string, personId: string) => showPerson(hallId, personId),
+  };
+  (window as unknown as Record<string, unknown>).halls = { advance, render, raster, painter, rig, clock, crowd, settings, perf, pin, nav };
 }
 requestAnimationFrame(loop);

@@ -30,8 +30,14 @@ const GYM: Window[] = [[6.1, 8.4], [19.8, 22.2]];
 const KEYNOTE: Window = [17.7, 19.5];
 const VISITS: Window[] = [[9.4, 11.7], [14.1, 17.3]];
 
+/**
+ * When the building starts for the review. Like lunch, the far side of the
+ * block has to set off early to be seated when the day's model walks on.
+ */
+const REVIEW_CALL = KEYNOTE[0] - 0.6;
+
 /** The hours the building changes what it is doing, and everyone looks up. */
-const CUES = [6, 8.5, 12, 14, 17.5, 22.5, LUNCH[0], DINNER[0], KEYNOTE[0], ...COFFEE.map((w) => w[0]), ...GYM.map((w) => w[0]), ...VISITS.map((w) => w[0])];
+const CUES = [6, 8.5, 12, 14, 17.5, 22.5, LUNCH[0], DINNER[0], REVIEW_CALL, KEYNOTE[0], ...COFFEE.map((w) => w[0]), ...GYM.map((w) => w[0]), ...VISITS.map((w) => w[0])];
 
 /** True when the clock has crossed a cue, or been wound, between two readings. */
 function crossed(from: number, to: number): boolean {
@@ -349,7 +355,7 @@ export class Crowd {
       }
       shared("coffee", 1.6 + t.sociability, COFFEE, [10, 20]);
       shared("exercise", t.fitness * 16, GYM, [30, 60], 5);
-      shared("audience", 18 + t.sociability * 8, [KEYNOTE], [60, 90], 10);
+      if (within(h, [REVIEW_CALL, KEYNOTE[1]])) shared("audience", 18 + t.sociability * 8, [KEYNOTE], [60, 90], 10);
       const interests = person.interests ?? defaultInterests(person);
       for (const tag of interests) shared(tag, 1.1 * t.range * (1 - t.focus * 0.5), VISITS, [25, 50], 3);
       // A figure staying in for lunch goes to its own room's table, or the court.
@@ -379,7 +385,7 @@ export class Crowd {
     // lunch or at the review, though, unless where it is is the lunch or the
     // review.
     const heldNow = this.held.get(seatKey(person.hallId, person.id));
-    const event = within(h, LUNCH) || within(h, KEYNOTE);
+    const event = within(h, LUNCH) || within(h, [REVIEW_CALL, KEYNOTE[1]]);
     for (const o of options) {
       if (!heldNow || heldNow.key !== `${o.st.hallId}/${o.st.id}`) continue;
       const part = o.st.tags.includes("meal") || o.st.tags.includes("audience");

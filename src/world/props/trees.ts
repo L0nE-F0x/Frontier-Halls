@@ -142,8 +142,14 @@ export function tree(ctx: BuildCtx, x: number, y: number, opts: TreeOpts = {}): 
   const ground = opts.ground ?? 0;
   const turn = opts.turn ?? 0;
   const birch = kind === "birch";
+  // From across the block a tree is a few pixels, and a grey-green that size
+  // stipples to nothing: far off, the canopy is drawn larger and greener,
+  // easing back to its true size and tone as the camera comes in, so there
+  // is no jump where the detail changes.
+  const far = Math.max(0, Math.min(1, (4.2 - p.cam.s) / 2.4));
+  const grow = 1 + 0.6 * far;
 
-  const trunkH = (birch ? 2.9 : kind === "lime" ? 2.5 : 2.2) * k * (0.92 + hash2(seed, 1) * 0.16);
+  const trunkH = (birch ? 2.9 : kind === "lime" ? 2.5 : 2.2) * k * (0.92 + hash2(seed, 1) * 0.16) * (1 + 0.25 * far);
   const lean = (hash2(seed, 2) - 0.5) * 0.16 * k;
   const bark = birch ? mix(MAT.white, MAT.paper, 0.3) : MAT.benchDark;
 
@@ -174,12 +180,12 @@ export function tree(ctx: BuildCtx, x: number, y: number, opts: TreeOpts = {}): 
 
   // The canopy's shadow, thrown across the ground along the light.
   if (ctx.shadowStrength > 0.01 && lod > 0) {
-    const mid = crown + 0.9 * k;
-    contactShadow(p, x + ctx.shadowX * mid, y + ctx.shadowY * mid, ground + 0.004, 1.45 * k, 1.15 * k, ctx.shadowStrength * 0.42, MAT.ink);
+    const mid = crown + 0.9 * k * grow;
+    contactShadow(p, x + ctx.shadowX * mid, y + ctx.shadowY * mid, ground + 0.004, 1.45 * k * grow, 1.15 * k * grow, ctx.shadowStrength * 0.42, MAT.ink);
   }
 
-  const leaf = MAT.leaf;
-  const crownTop = mix(leaf, MAT.green, 0.5);
+  const leaf = mix(MAT.leaf, MAT.green, 0.18 + 0.5 * far);
+  const crownTop = mix(MAT.leaf, MAT.green, 0.55 + 0.35 * far);
   const autumn = mix(leaf, MAT.lamp, 0.42);
   const autumnTop = mix(MAT.lamp, leaf, 0.25);
   // Far away a tree is its outline: the core and the shoulders, few sides.
@@ -195,10 +201,11 @@ export function tree(ctx: BuildCtx, x: number, y: number, opts: TreeOpts = {}): 
     const shade = 0.92 + hash2(seed, i + 70) * 0.14;
     const tone = m.turned ? autumn : scale(leaf, shade);
     const top = m.turned ? autumnTop : scale(crownTop, shade);
+    const g = k * grow;
     puff(
       ctx,
-      x + lean + (m.dx + sway) * k, y + m.dy * k, crown + m.z * k,
-      m.r * k, m.r * k * 0.94, m.h * k,
+      x + lean + (m.dx + sway) * g, y + m.dy * g, crown + m.z * g,
+      m.r * g, m.r * g * 0.94, m.h * g,
       tone, top, bands, sides, hash2(seed, i) * 0.6,
     );
   });

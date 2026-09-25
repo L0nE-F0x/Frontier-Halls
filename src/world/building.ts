@@ -404,8 +404,19 @@ function courtFloor(ctx: BuildCtx, ox: number, oy: number, w: number, d: number,
  * moved the camera; the room you asked for has to be the thing on the page.
  */
 export function washFor(ctx: BuildCtx, hallId: string): number {
-  if (!ctx.focus || ctx.focus === hallId) return 0;
-  const a = hallById(ctx.focus);
+  const to = washToward(ctx.focus, hallId);
+  const k = ctx.washK ?? 1;
+  if (ctx.washFrom === undefined || k >= 1) return to;
+  // Eased from the last focus to this one, rather than switched: going from
+  // one room to another, the building used to flash to its new wash in a
+  // single frame.
+  const from = washToward(ctx.washFrom, hallId);
+  return from + (to - from) * k;
+}
+
+function washToward(focus: string | null, hallId: string): number {
+  if (!focus || focus === hallId) return 0;
+  const a = hallById(focus);
   const b = hallById(hallId);
   if (!a || !b) return 0.52;
   const ac = centreSlot(a);
