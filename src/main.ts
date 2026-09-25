@@ -15,6 +15,7 @@ import { depthOf, screenX, screenY, unrotX, unrotY } from "./engine/project";
 import { textCells, worldText } from "./engine/text";
 import { Rig } from "./app/camera";
 import { clearSettings, DEFAULTS, loadSettings, saveSettings, type Settings } from "./app/settings";
+import { mountInstallOffer } from "./app/install";
 import { LOOKING_FROM, Ui, type Selection } from "./app/ui";
 import {
   buildBlock, collectLamps, GRID, halls, roomAt, hallById, hallOrigin, hallPoints, layoutNav, personPoints, washFor, blockPoints,
@@ -1054,6 +1055,9 @@ const scratchCtx = scratch.getContext("2d")!;
 
 /* -------------------------------------------------------------------- boot */
 
+// Before the first framing, so a phone's install slip is already accounted
+// for in the plate and the block does not jump when the slip arrives.
+mountInstallOffer();
 resize();
 readHash();
 ui.renderClock(!clock.running);

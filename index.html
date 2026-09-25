@@ -12,6 +12,7 @@
        * body starts out at the gate: without that the app's own chrome would
        * show for the moment between the stylesheet and the script.
        */
+      html, body { background: #d6d2cc; }
       #gate { position: fixed; inset: 0; z-index: 16; background: #d6d2cc; }
     </style>
     <meta
@@ -19,10 +20,15 @@
       content="Thirty-two frontier AI labs and the rooms they share, drawn as one building in a handful of inks and running on one clock."
     />
     <meta name="theme-color" content="#d6d2cc" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Frontier Halls" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="canonical" href="https://frontier-halls.netlify.app/" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
 
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Frontier Halls" />
@@ -322,6 +328,18 @@
         </footer>
       </div>
     </div>
+
+    <aside id="install" class="install" hidden aria-label="Add Frontier Halls to your home screen">
+      <img class="install-icon" src="/icons/icon-192.png" width="44" height="44" alt="" />
+      <div class="install-copy">
+        <p class="install-kicker">Home screen</p>
+        <p id="install-line" class="install-line"></p>
+      </div>
+      <div class="install-actions">
+        <button type="button" id="install-go" hidden>Install</button>
+        <button type="button" id="install-dismiss">Not now</button>
+      </div>
+    </aside>
 
     <p id="stats" class="stats" hidden></p>
 

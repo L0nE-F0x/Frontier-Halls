@@ -96,8 +96,9 @@ html, body {
 
 #hud {
   position: fixed;
-  left: var(--gap);
-  top: 16px;
+  /* 0 in a browser. The notch, once the installed app has hidden the status bar. */
+  left: calc(var(--gap) + env(safe-area-inset-left, 0px));
+  top: calc(16px + env(safe-area-inset-top, 0px));
   max-width: 24rem;
   padding-right: 48px;
   pointer-events: none;
@@ -186,8 +187,8 @@ input[type="range"]::-moz-range-thumb {
 
 #dossier {
   position: fixed;
-  top: 16px;
-  right: var(--gap);
+  top: calc(16px + env(safe-area-inset-top, 0px));
+  right: calc(var(--gap) + env(safe-area-inset-right, 0px));
   width: min(336px, calc(100vw - 32px));
   max-height: calc(100vh - 150px);
   overflow-y: auto;
@@ -325,14 +326,14 @@ button {
 #dock {
   position: fixed;
   isolation: isolate;
-  left: var(--gap);
+  left: calc(var(--gap) + env(safe-area-inset-left, 0px));
   /* Sits on its own row, above the toolbar, so every hall name stays readable. */
-  bottom: 58px;
+  bottom: calc(58px + env(safe-area-inset-bottom, 0px));
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
   gap: 4px 5px;
-  max-width: calc(100vw - var(--gap) * 2);
+  max-width: calc(100vw - var(--gap) * 2 - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
   padding: 3px 5px;
   background: var(--panel);
   border: 1px solid var(--panel-line);
@@ -465,8 +466,8 @@ button {
 
 #tools {
   position: fixed;
-  right: var(--gap);
-  bottom: 14px;
+  right: calc(var(--gap) + env(safe-area-inset-right, 0px));
+  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
   display: flex;
   align-items: center;
   gap: 2px;
@@ -498,8 +499,8 @@ button {
    the right, ruled the way a drawing of this kind is. */
 #map-wrap {
   position: fixed;
-  left: var(--gap);
-  bottom: 118px;
+  left: calc(var(--gap) + env(safe-area-inset-left, 0px));
+  bottom: calc(118px + env(safe-area-inset-bottom, 0px));
   z-index: 4;
   display: flex;
   flex-direction: column;
@@ -811,8 +812,8 @@ button {
    corner, and the stats covered the readout's own Hide control. */
 .stats {
   position: fixed;
-  right: var(--gap);
-  top: 16px;
+  right: calc(var(--gap) + env(safe-area-inset-right, 0px));
+  top: calc(16px + env(safe-area-inset-top, 0px));
   margin: 0;
   z-index: 9;
   font-family: var(--mono);
@@ -988,7 +989,11 @@ body.at-gate #view.pointing { cursor: pointer; }
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 20px;
-  padding: 11px 22px;
+  padding:
+    calc(11px + env(safe-area-inset-top, 0px))
+    calc(22px + env(safe-area-inset-right, 0px))
+    11px
+    calc(22px + env(safe-area-inset-left, 0px));
   border-bottom: 1px solid var(--panel-line);
   pointer-events: auto;
 }
@@ -1609,7 +1614,11 @@ body.arriving #tools { animation: chrome-in 620ms cubic-bezier(0.2, 0.7, 0.2, 1)
   .gate-sheet::before { display: none; }
   .gate-head {
     grid-template-columns: minmax(0, 1fr) auto;
-    padding: 12px 18px;
+    padding:
+      calc(12px + env(safe-area-inset-top, 0px))
+      calc(18px + env(safe-area-inset-right, 0px))
+      12px
+      calc(18px + env(safe-area-inset-left, 0px));
   }
   .gate-sheetno { display: none; }
   .gate-time { justify-content: flex-end; }
@@ -1700,24 +1709,27 @@ body.arriving #tools { animation: chrome-in 620ms cubic-bezier(0.2, 0.7, 0.2, 1)
   #dossier {
     top: auto;
     bottom: calc(126px + var(--safe));
-    right: var(--gap);
-    width: calc(100vw - var(--gap) * 2);
+    right: calc(var(--gap) + env(safe-area-inset-right, 0px));
+    width: calc(100vw - var(--gap) * 2 - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
     max-height: 34vh;
   }
-  #dock { max-width: calc(100vw - var(--gap) * 2); bottom: calc(10px + var(--safe)); }
+  #dock {
+    max-width: calc(100vw - var(--gap) * 2 - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
+    bottom: calc(10px + var(--safe));
+  }
   #map-wrap { display: none; }
   .clock { font-size: 30px; }
   /* The toolbar wraps onto its own row above the halls, clear of the clock. */
   #tools {
     top: auto;
     bottom: calc(54px + var(--safe));
-    left: var(--gap);
-    right: var(--gap);
+    left: calc(var(--gap) + env(safe-area-inset-left, 0px));
+    right: calc(var(--gap) + env(safe-area-inset-right, 0px));
     max-width: none;
     flex-wrap: wrap;
     justify-content: flex-end;
   }
-  body.fold-dossier #dossier { top: 12px; bottom: auto; }
+  body.fold-dossier #dossier { top: calc(12px + env(safe-area-inset-top, 0px)); bottom: auto; }
   body.fold-tools #tools { left: auto; bottom: calc(54px + var(--safe)); }
   #hud { max-width: calc(100vw - 150px); }
   .timeline { width: 100%; }
@@ -1732,4 +1744,159 @@ body.arriving #tools { animation: chrome-in 620ms cubic-bezier(0.2, 0.7, 0.2, 1)
 
 @media (prefers-reduced-motion: reduce) {
   .toast { animation-duration: 0.01ms; }
+}
+
+/* ------------------------------------------------------- install slip */
+
+/*
+ * A label on the cover, not a second door. It sits on the glass only while
+ * the sheet is up, and steps aside if it would cover Enter the halls.
+ * Fixed, so it stays in view on the way in; the plate above it is shortened
+ * on a phone so the door and the slip can share the first screen.
+ */
+.install {
+  position: fixed;
+  z-index: 18;
+  left: max(14px, env(safe-area-inset-left, 0px));
+  right: max(14px, env(safe-area-inset-right, 0px));
+  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  margin-inline: auto;
+  width: min(26rem, calc(100% - 28px));
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 12px;
+  row-gap: 6px;
+  align-items: center;
+  padding: 11px 14px 11px 11px;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--panel-line);
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--ink) 12%, transparent);
+  pointer-events: auto;
+}
+.install[hidden],
+body:not(.at-gate) .install { display: none !important; }
+
+.install-icon {
+  grid-row: 1 / span 2;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--panel-line);
+}
+.install-copy { min-width: 0; }
+.install-kicker {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 400;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.install-line {
+  margin: 3px 0 0;
+  font-size: 15px;
+  line-height: 1.35;
+}
+.install-share {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  vertical-align: -2px;
+  margin: 0 1px;
+}
+.install-actions {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.install-go,
+.install-dismiss {
+  padding: 8px 0;
+  font-size: 15px;
+  line-height: 1;
+}
+.install-go {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--accent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+}
+.install-dismiss { color: var(--ink-soft); }
+.install-go:hover,
+.install-dismiss:hover { color: var(--ink); }
+.install button:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* No install button on iOS: the sentence is the instruction, Not now sits beside it. */
+.install.install-note {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+}
+.install.install-note .install-icon { grid-row: auto; }
+.install.install-note .install-actions { grid-column: auto; }
+
+.install.is-in { animation: install-in 560ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+@keyframes install-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+.install.install-away {
+  opacity: 0;
+  pointer-events: none;
+}
+
+@media (min-width: 761px) {
+  /* Beside the plate, on the schedule, so the title stays readable in landscape. */
+  .install {
+    left: auto;
+    right: max(16px, env(safe-area-inset-right, 0px));
+    bottom: 0;
+    width: min(28rem, 52vw);
+    margin-inline: 0;
+    border-width: 1px 0 0 1px;
+    box-shadow: none;
+  }
+}
+@media (max-height: 520px) and (min-width: 761px) {
+  .install-kicker { display: none; }
+  .install-line { margin: 0; }
+  .install { align-items: center; }
+}
+
+body.at-gate.has-install .gate-sheet {
+  padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px));
+}
+
+/* A ruled strip along the bottom edge, rather than a card floating over the halls. */
+@media (max-width: 760px) {
+  .install {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    margin: 0;
+    border-width: 1px 0 0;
+    box-shadow: none;
+    padding:
+      10px
+      calc(16px + env(safe-area-inset-right, 0px))
+      calc(12px + env(safe-area-inset-bottom, 0px))
+      calc(16px + env(safe-area-inset-left, 0px));
+  }
+  body.at-gate.has-install .gate-frame {
+    height: clamp(128px, min(44vw, 30svh), 220px);
+  }
+}
+@media (max-width: 760px) and (max-height: 720px) {
+  body.at-gate.has-install .gate-frame { height: 124px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .install,
+  .install.is-in { animation: none; transition: none; }
 }
