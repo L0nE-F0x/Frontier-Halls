@@ -180,6 +180,18 @@ test/          vitest, run headless
   a seat lives in `roster.ts`, which is the only file a script is allowed to
   rewrite.
 
+### app
+
+- **`camera.ts`** — the rig. It is either framing something (the block, a
+  room, a region, a figure) or it is yours: a zoom or a drag hands it over,
+  and nothing re-frames it until something new is chosen. The app coarsens its
+  own buffer when frames run slow, and zooming in is what makes them slow, so
+  a new buffer size rescales the view rather than re-framing it — it used to
+  snap back out about a second after every zoom. Turning the building pivots
+  on the middle of the view, a followed figure is tracked by how far it moves,
+  and the buttons ease a zoom in rather than cutting to it.
+- **`ui.ts`**, **`settings.ts`** — the panels, the cover sheet and the settings.
+
 ## Adding a hall
 
 1. Write a file in `src/world/halls/labs/` with `defineHall`; the one next to

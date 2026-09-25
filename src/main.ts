@@ -67,6 +67,9 @@ const hooks = {
   stepPerson: (delta: number) => cyclePerson(delta),
   rotate: (delta: number) => {
     const yaw = rig.rotate(delta);
+    // A followed figure has moved since it was framed; frame where it is now.
+    const person = selectedPerson();
+    if (person && !rig.free) rig.frame(personPoints(person.x, person.y), 0.92, true, 1.1);
     ui.noteView(yaw);
     if (!ui.atGate) ui.toast(`Looking from the ${LOOKING_FROM[yaw]}`);
   },
@@ -201,8 +204,15 @@ function considerRelief(ms: number, dt: number): void {
   reliefSum = 0;
   reliefFrames = 0;
   const before = relief;
-  if (average > 26 && relief < 2) relief = Math.min(2, relief + 0.25);
-  else if (average < 12 && relief > 1) relief = Math.max(1, relief - 0.25);
+  if (average > 26 && relief < 2) {
+    relief = Math.min(2, relief + 0.25);
+  } else if (relief > 1) {
+    // Back to a finer buffer only if the frame would still fit at it. Drawing
+    // costs go with the square of the resolution, and a fixed threshold that
+    // ignored that see-sawed between two sizes about once a second.
+    const finer = Math.max(1, relief - 0.25);
+    if (average * (relief / finer) ** 2 < 20) relief = finer;
+  }
   if (relief !== before) resize();
 }
 
@@ -215,12 +225,23 @@ function cssPerUnit(): number {
   return rig.cam.s * Math.sqrt(1.25) * perBuffer;
 }
 
+/** The window size the buffer was last laid out for, in CSS pixels. */
+let laidOut = { w: 0, h: 0 };
+
 function resize(): void {
   const dpr = Math.min(2, window.devicePixelRatio || 1);
   const cssW = window.innerWidth;
   const cssH = window.innerHeight;
-  view.width = Math.max(2, Math.round(cssW * dpr));
-  view.height = Math.max(2, Math.round(cssH * dpr));
+  const before = { bufferW: raster.w, cssW: laidOut.w };
+  const windowChanged = cssW !== laidOut.w || cssH !== laidOut.h;
+  laidOut = { w: cssW, h: cssH };
+  // Assigning a canvas its size clears it, even to the size it already has,
+  // and the buffer changes size by itself on a slow machine: every change
+  // blanked the picture for a frame.
+  const viewW = Math.max(2, Math.round(cssW * dpr));
+  const viewH = Math.max(2, Math.round(cssH * dpr));
+  if (view.width !== viewW) view.width = viewW;
+  if (view.height !== viewH) view.height = viewH;
   view.style.width = `${cssW}px`;
   view.style.height = `${cssH}px`;
   const pixel = Math.max(1, settings.pixel) * relief * dpr;
@@ -230,7 +251,14 @@ function resize(): void {
   );
   rig.setViewport(raster.w, raster.h);
   rig.insets = insets();
-  rig.refit(true);
+  if (before.bufferW > 8 && before.cssW > 0 && (rig.free || !windowChanged)) {
+    // The same window with a coarser or finer buffer — the app keeping up with
+    // a slow machine, or the pixel setting — or a view the user has set: keep
+    // it exactly, apart from the grain.
+    rig.rescale((raster.w / cssW) / (before.bufferW / before.cssW));
+  } else {
+    rig.refit(true);
+  }
   ui.markDockScroll();
   screen.imageSmoothingEnabled = false;
 }
@@ -737,9 +765,9 @@ function advance(dt: number): void {
   // the whole conceit was visibly untrue.
   crowd.update(dt, clock, settings.motion && clock.running && clock.rate > 0);
 
-  if (selection.kind === "person" && !rig.goal) {
+  if (selection.kind === "person") {
     const person = selectedPerson();
-    if (person) rig.frame(personPoints(person.x, person.y), 0.92, false, 1.1);
+    if (person) rig.track(person.x, person.y);
   }
 }
 
@@ -875,17 +903,22 @@ function drawLabels(selected: Person | undefined): void {
   // A world step along the screen-horizontal axis covers sqrt(2) * s pixels,
   // so this is what turns a count of buffer pixels into world units.
   const cell = (px: number) => px / (s * Math.SQRT2);
-  /** A glyph cell of `world` units, held to at least `minPx` buffer pixels. */
-  const fit = (world: number, minPx = 1) => Math.max(cell(minPx), world);
+  /**
+   * A glyph cell of `world` units, held between `minPx` and `maxPx` buffer
+   * pixels: never so small it falls apart, and never, now the camera can be
+   * taken as close as anyone likes, a name the height of the window.
+   */
+  const fit = (world: number, minPx = 1, maxPx = 2.6) => Math.min(cell(maxPx), Math.max(cell(minPx), world));
   const hall = hallById(currentHallId());
   const plates: Plate[] = [];
 
-  // Named while a hall is the subject. Once a single figure is framed the
-  // others stop shouting, and hovering any of them still names it.
-  if (selection.kind === "hall" && s > 9) {
+  // Named while a hall is the subject, or anywhere once the camera has been
+  // brought close enough to the block to read a name. Once a single figure is
+  // framed the others stop shouting, and hovering any of them still names it.
+  if ((selection.kind === "hall" || selection.kind === "overview") && s > 9) {
     for (const person of crowd.people) {
       if (hall && person.hallId !== hall.id) continue;
-      if (person === selected || person === hoveredPerson) continue;
+      if (person === selected || person === hoveredPerson || person.presence < 0.5) continue;
       // On a plate like the subject's, because a drawn name over a drawn floor
       // in the same two inks is not a name anyone can read.
       plates.push({
@@ -903,26 +936,30 @@ function drawLabels(selected: Person | undefined): void {
       text: shortName(person),
       x: person.x, y: person.y,
       z: FLOOR_Z + 2.2 * person.scale,
-      size: fit(0.055 * person.scale),
+      size: fit(0.055 * person.scale, 1, 3),
       rank: 0,
     });
   }
   if (!hall) {
-    // Named in the world once there is room for the name to be read. Below
-    // that the dock and the plan do the labelling, and hovering names one.
-    if (s > 3.6) {
+    // Named in the world once there is room for the name to be read, and
+    // until the camera is close enough for the figures' names to take over
+    // and the rooms' own signs to be read. Below that the dock and the plan
+    // do the labelling, and hovering names one.
+    if (s > 3.6 && s <= 9) {
       for (const item of halls) {
         if (item.id === hoveredHall) continue;
         const o = hallOrigin(item);
-        // Half the width of the room it names, so the plan reads as a plan.
-        label(item.plaque, o.x + RW / 2, o.y + RD * 0.5, 8.6, fit(planCell(item.plaque)), MAT.ink);
+        // Half the width of the room it names, so the plan reads as a plan,
+        // but capped: sized to the room alone, a name grew without limit as
+        // the camera came in.
+        label(item.plaque, o.x + RW / 2, o.y + RD * 0.5, 8.6, fit(planCell(item.plaque), 1, 2.4), MAT.ink);
       }
     }
     // On the cover, a hall a link named keeps its plate up too.
     const over = hallById(ui.atGate ? gateFocus() : hoveredHall);
     if (over) {
       const o = hallOrigin(over);
-      labelPlate(over.name, o.x + RW / 2, o.y + RD * 0.5, 8.8, fit(planCell(over.name)));
+      labelPlate(over.name, o.x + RW / 2, o.y + RD * 0.5, 8.8, fit(planCell(over.name), 1, 2.4));
     }
   }
   placeLabels(plates);

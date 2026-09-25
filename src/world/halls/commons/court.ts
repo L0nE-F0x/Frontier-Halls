@@ -41,7 +41,8 @@ export const court = defineHall({
   people: [],
   layout(L) {
     L.draw((ctx, ox, oy) => {
-      for (const [x, y] of [[4.2, 3.2], [27.8, 3.2], [4.2, 9.8], [27.8, 9.8]] as const) courtTree(ctx, ox + x, oy + y, 1);
+      // The one in the sheltered south-east corner has started to turn.
+      for (const [x, y, turn] of [[4.2, 3.2, 0.1], [27.8, 3.2, 0.2], [4.2, 9.8, 0.15], [27.8, 9.8, 0.75]] as const) courtTree(ctx, ox + x, oy + y, 1, turn);
       fountain(ctx, ox + 4.2, oy + 6.5, 1.1);
       fountain(ctx, ox + 27.8, oy + 6.5, 1.1);
       for (const [x, w] of [[1.6, 3.8], [10.6, 10.8], [26.6, 3.8]] as const) {

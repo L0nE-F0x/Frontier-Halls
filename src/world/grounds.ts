@@ -1,11 +1,11 @@
 import { mix, scale } from "../engine/color";
 import { screenX, screenY } from "../engine/project";
 import { hash2 } from "../engine/rng";
-import { contactShadow } from "../engine/shapes";
 import type { Lamp } from "../engine/types";
 import type { BuildCtx } from "./ctx";
 import { MAT } from "./materials";
 import { FLOOR_Z } from "./metrics";
+import { tree, type TreeKind } from "./props/trees";
 
 /**
  * The grounds stop a little past the curb. The overview frames this box, so a
@@ -36,25 +36,27 @@ export type Post = {
 
 /**
  * Trees and lamps along the outer half of the sidewalk, plus a lamp at each
- * corner. Spacing is wide on purpose: the ring should read as a street, not a
- * hedge.
+ * corner: two trees, then a lamp, all the way round. It was a tree every
+ * twenty-eight metres, which on a block this size read as a dotted line
+ * rather than a street with trees in it.
  */
 export function exteriorPosts(blockW: number, blockD: number): Post[] {
   const posts: Post[] = [];
   const out = SETBACK + VERGE + WALK * 0.62;
   const end = 6.5;
-  const gap = 14;
+  const gap = 7;
+  const kind = (i: number): Post["kind"] => (i % 3 === 1 ? "lamp" : "tree");
   sidePosts(posts, end, blockW - end, gap, (t, i) => ({
-    x: t, y: -out, kind: i % 2 === 0 ? "tree" : "lamp", side: "n", ax: 0, ay: 1,
+    x: t, y: -out, kind: kind(i), side: "n", ax: 0, ay: 1,
   }));
   sidePosts(posts, end, blockW - end, gap, (t, i) => ({
-    x: t, y: blockD + out, kind: i % 2 === 0 ? "tree" : "lamp", side: "s", ax: 0, ay: -1,
+    x: t, y: blockD + out, kind: kind(i), side: "s", ax: 0, ay: -1,
   }));
   sidePosts(posts, end, blockD - end, gap, (t, i) => ({
-    x: -out, y: t, kind: i % 2 === 0 ? "tree" : "lamp", side: "w", ax: 1, ay: 0,
+    x: -out, y: t, kind: kind(i), side: "w", ax: 1, ay: 0,
   }));
   sidePosts(posts, end, blockD - end, gap, (t, i) => ({
-    x: blockW + out, y: t, kind: i % 2 === 0 ? "tree" : "lamp", side: "e", ax: -1, ay: 0,
+    x: blockW + out, y: t, kind: kind(i), side: "e", ax: -1, ay: 0,
   }));
 
   const c = SETBACK + VERGE + WALK - 0.8;
@@ -134,7 +136,7 @@ export function buildGrounds(ctx: BuildCtx, blockW: number, blockD: number): voi
 
   for (const post of exteriorPosts(blockW, blockD)) {
     if (!shown.has(post.side)) continue;
-    if (post.kind === "tree") tree(ctx, post.x, post.y);
+    if (post.kind === "tree") streetTree(ctx, post.x, post.y);
     else streetLamp(ctx, post.x, post.y, post.ax, post.ay);
   }
 
@@ -176,21 +178,20 @@ function pave(ctx: BuildCtx, x: number, y: number, w: number, d: number, color: 
   }
 }
 
-function tree(ctx: BuildCtx, x: number, y: number): void {
-  const { p, time } = ctx;
-  const n = hash2(x, y);
-  const trunk = 2.15 + n * 0.55;
-  const sway = Math.sin(time * 0.55 + x * 0.7) * 0.06;
-  p.cylinder(x, y, FLOOR_Z, 0.28, 0.28, trunk, MAT.benchDark, 7, { top: MAT.soil });
-  const crown = FLOOR_Z + trunk - 0.15;
-  // MAT.leaf is a pale grey-green on purpose. A real dark green has no ink in
-  // these palettes and collapses into a black blob. The crown is wide because
-  // the whole block is on screen at once and a small canopy becomes one pixel.
-  p.cylinder(x + sway, y, crown, 1.55, 1.15, 1.7, MAT.leaf, 8, { top: scale(MAT.leaf, 1.08) });
-  if (ctx.quality > 0) {
-    p.cylinder(x + sway + 0.2, y - 0.1, crown + 0.85, 0.95, 0.7, 0.9, scale(MAT.leaf, 0.88), 7);
-  }
-  if (ctx.quality > 0) contactShadow(p, x, y, FLOOR_Z, 0.7, 0.45, ctx.shadowStrength * 0.45, MAT.ink);
+/**
+ * A street tree in its grate: planes mostly, limes between, the odd birch,
+ * chosen by where it stands so the street is the same street every visit. It
+ * is late September, and about a third of them have started to turn.
+ */
+function streetTree(ctx: BuildCtx, x: number, y: number): void {
+  const pick = hash2(Math.round(x * 3), Math.round(y * 3));
+  const kind: TreeKind = pick < 0.55 ? "plane" : pick < 0.85 ? "lime" : "birch";
+  const autumn = hash2(Math.round(y * 5), Math.round(x * 5));
+  const turn = autumn > 0.64 ? 0.5 + (autumn - 0.64) * 1.4 : autumn * 0.25;
+  // MAT.leaf is a pale grey-green on purpose: a real dark green has no ink in
+  // these palettes and collapses into a black blob. The tops take the green
+  // accent instead, which is what reads as leaves.
+  tree(ctx, x, y, { kind, ground: 0.085, grate: true, turn, size: kind === "birch" ? 0.95 : 1.05 });
 }
 
 function streetLamp(ctx: BuildCtx, x: number, y: number, ax: number, ay: number): void {

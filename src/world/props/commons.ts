@@ -7,6 +7,7 @@ import { shows, type BuildCtx } from "../ctx";
 import { MAT } from "../materials";
 import { FLOOR_Z, TRUSS_Z } from "../metrics";
 import { at, axes, footprint, orient } from "./furniture";
+import { tree } from "./trees";
 
 /*
  * The furniture of the rooms every lab shares. Each piece that somebody uses
@@ -942,16 +943,17 @@ export function jars(ctx: BuildCtx, x: number, y: number, count: number): void {
 /* ================================================================= court */
 
 /** A tree in a square planter with a bench wrapped round it. */
-export function courtTree(ctx: BuildCtx, x: number, y: number, size = 1): void {
-  const { p, time } = ctx;
+export function courtTree(ctx: BuildCtx, x: number, y: number, size = 1, turn = 0.15): void {
+  const { p } = ctx;
   const r = 0.9 * size;
   p.box(x - r, y - r, FLOOR_Z, r * 2, r * 2, 0.46, MAT.wood, { top: MAT.soil });
-  const trunk = 2.4 * size;
-  p.cylinder(x, y, FLOOR_Z + 0.46, 0.2 * size, 0.2 * size, trunk, MAT.woodDark, 7);
-  const sway = Math.sin(time * 0.5 + x) * 0.05;
-  p.cylinder(x + sway, y, FLOOR_Z + 0.46 + trunk - 0.2, 1.7 * size, 1.4 * size, 1.5 * size, MAT.leaf, ctx.lod > 1 ? 10 : 7, { top: scale(MAT.leaf, 1.08) });
-  if (ctx.lod > 0) p.cylinder(x + sway + 0.2, y - 0.1, FLOOR_Z + 0.46 + trunk + 0.9 * size, 1.1 * size, 0.9 * size, 0.8 * size, scale(MAT.leaf, 0.9), 8);
-  if (ctx.lod > 0) contactShadow(p, x, y, FLOOR_Z, 1.6 * size, 1.1 * size, ctx.shadowStrength * 0.4, MAT.ink);
+  if (ctx.lod > 1) {
+    // A bench-height rim to sit on, in a lighter wood than the box.
+    p.box(x - r - 0.06, y - r - 0.06, FLOOR_Z + 0.46, r * 2 + 0.12, 0.12, 0.05, MAT.bench);
+    p.box(x - r - 0.06, y + r - 0.06, FLOOR_Z + 0.46, r * 2 + 0.12, 0.12, 0.05, MAT.bench);
+  }
+  // The court's trees are planes, a size up from the street's.
+  tree(ctx, x, y, { kind: "plane", size: 1.3 * size, ground: FLOOR_Z + 0.46, turn });
   ctx.nav?.blockRect(x - r, y - r, r * 2, r * 2, 0.05);
 }
 
