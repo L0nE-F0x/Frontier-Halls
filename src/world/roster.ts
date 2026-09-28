@@ -89,7 +89,7 @@ export const ROSTER: Record<string, Seat> = {
   "openai/fast": { name: "GPT-6 Luna", short: "Luna", id: "openai/gpt-6-luna", source: "openrouter", checked: "2026-09-23" },
   "anthropic/fable": { name: "Claude Fable 5.1", short: "Fable 5.1", id: "anthropic/claude-fable-5.1", source: "openrouter", checked: "2026-09-22" },
   "anthropic/opus": { name: "Claude Opus 5.5", short: "Opus 5.5", id: "anthropic/claude-opus-5.5", source: "openrouter", checked: "2026-09-23" },
-  "anthropic/sonnet": { name: "Claude Sonnet 5", short: "Sonnet 5", id: "anthropic/claude-sonnet-5", source: "openrouter", checked: "2026-09-22" },
+  "anthropic/sonnet": { name: "Claude Sonnet 5.5", short: "Sonnet 5.5", id: "anthropic/claude-sonnet-5.5", source: "openrouter", checked: "2026-09-28" },
   "anthropic/haiku": { name: "Claude Haiku 4.5", short: "Haiku 4.5", id: "anthropic/claude-haiku-4.5", source: "openrouter", checked: "2026-09-22" },
   "thinking/inkling": { name: "Inkling", short: "Inkling", id: "thinkingmachines/inkling", source: "openrouter", checked: "2026-09-25" },
   "thinking/small": { name: "Inkling Small", short: "Inkling Small", id: "thinkingmachines/inkling-small", source: "openrouter", checked: "2026-09-25" },
