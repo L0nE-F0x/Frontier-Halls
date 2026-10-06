@@ -50,7 +50,7 @@ export const ROSTER: Record<string, Seat> = {
   "deepmind/flash": { name: "Gemini 3.8 Flash", short: "3.8 Flash", id: "google/gemini-3.8-flash", source: "openrouter", checked: "2026-09-22" },
   "deepmind/robotics": { name: "Gemini Robotics", short: "Robotics", source: "hand", checked: "2026-09-23" },
   "deepmind/gemma": { name: "Gemma 4 31B", short: "Gemma 4 31B", id: "google/gemma-4-31b-it", source: "openrouter", checked: "2026-09-25" },
-  "mistral/flagship": { name: "Mistral Medium 3.5", short: "Medium 3.5", id: "mistralai/mistral-medium-3-5", source: "openrouter", checked: "2026-09-22" },
+  "mistral/flagship": { name: "Mistral Large 4", short: "Large 4", id: "mistralai/mistral-large-4-0", source: "openrouter", checked: "2026-10-06" },
   "mistral/agent": { name: "Devstral 2", short: "Devstral 2", id: "mistralai/devstral-2512", source: "openrouter", checked: "2026-09-22" },
   "mistral/coder": { name: "Codestral", short: "Codestral", id: "mistralai/codestral-2508", source: "openrouter", checked: "2026-09-22" },
   "mistral/small": { name: "Mistral Small 4", short: "Small 4", id: "mistralai/mistral-small-2603", source: "openrouter", checked: "2026-09-25" },
