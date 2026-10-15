@@ -113,7 +113,7 @@ export const ROSTER: Record<string, Seat> = {
   "meta/small": { name: "Muse Glimmer 30B", short: "Glimmer 30B", id: "meta/muse-glimmer-30b", source: "openrouter", checked: "2026-09-22" },
   "meta/open": { name: "Llama 4 Maverick", short: "Llama 4", id: "meta-llama/llama-4-maverick", source: "openrouter", checked: "2026-09-22" },
   "nvidia/ultra": { name: "Nemotron 3 Ultra", short: "Ultra", id: "nvidia/nemotron-3-ultra-550b-a55b", source: "openrouter", checked: "2026-09-25" },
-  "nvidia/super": { name: "Nemotron 3 Super", short: "Super", id: "nvidia/nemotron-3-super-120b-a12b", source: "openrouter", checked: "2026-09-25" },
+  "nvidia/super": { name: "Nemotron 3.5 Super VL", short: "Super VL", id: "nvidia/nemotron-3.5-super-vl", source: "openrouter", checked: "2026-10-15" },
   "nvidia/lightning": { name: "Nemotron 3.5 Lightning", short: "Lightning", id: "nvidia/nemotron-3.5-lightning", source: "openrouter", checked: "2026-09-25" },
   "nvidia/safety": { name: "Nemotron 3.5 Content Safety", short: "Content Safety", id: "nvidia/nemotron-3.5-content-safety", source: "openrouter", checked: "2026-09-25" },
   "sarvam/sarvam": { name: "Sarvam-M", short: "Sarvam-M", source: "hand", checked: "2026-09-25" },
