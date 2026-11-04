@@ -124,7 +124,7 @@ export const ROSTER: Record<string, Seat> = {
   "minimax/hailuo": { name: "Hailuo", short: "Hailuo", source: "hand", checked: "2026-09-25" },
   "stepfun/flash": { name: "Step 3.7 Flash", short: "Step 3.7 Flash", id: "stepfun/step-3.7-flash", source: "openrouter", checked: "2026-09-25" },
   "stepfun/audio": { name: "Step-Audio", short: "Step-Audio", source: "hand", checked: "2026-09-25" },
-  "tencent/hy4": { name: "Hy4", short: "Hy4", id: "tencent/hy4-preview", source: "openrouter", checked: "2026-09-25" },
+  "tencent/hy4": { name: "Hy4", short: "Hy4", id: "tencent/hy4", source: "openrouter", checked: "2026-11-04" },
   "tencent/mt": { name: "Hy-MT2-30B-A3B", short: "Hy-MT2-30B-A3B", id: "tencent/hy-mt2-30b-a3b", source: "openrouter", checked: "2026-09-25" },
   "tencent/hunyuan3d": { name: "Hunyuan3D", short: "Hunyuan3D", source: "hand", checked: "2026-09-25" },
   "sakana/ultra": { name: "Fugu Ultra v2", short: "Fugu Ultra v2", id: "sakana/fugu-ultra-v2", source: "openrouter", checked: "2026-09-25" },
