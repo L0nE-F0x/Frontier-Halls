@@ -87,7 +87,7 @@ export const ROSTER: Record<string, Seat> = {
   "openai/flagship": { name: "GPT-6 Astra", short: "Astra", id: "openai/gpt-6-astra", source: "openrouter", checked: "2026-09-22" },
   "openai/balanced": { name: "GPT-6.1 Terra", short: "Terra", id: "openai/gpt-6.1-terra", source: "openrouter", checked: "2026-10-26" },
   "openai/fast": { name: "GPT-6 Luna", short: "Luna", id: "openai/gpt-6-luna", source: "openrouter", checked: "2026-09-23" },
-  "anthropic/fable": { name: "Claude Fable 5.1", short: "Fable 5.1", id: "anthropic/claude-fable-5.1", source: "openrouter", checked: "2026-09-22" },
+  "anthropic/fable": { name: "Claude Fable 5.2", short: "Fable 5.2", id: "anthropic/claude-fable-5.2", source: "openrouter", checked: "2026-11-09" },
   "anthropic/opus": { name: "Claude Opus 5.5", short: "Opus 5.5", id: "anthropic/claude-opus-5.5", source: "openrouter", checked: "2026-09-23" },
   "anthropic/sonnet": { name: "Claude Sonnet 5.5", short: "Sonnet 5.5", id: "anthropic/claude-sonnet-5.5", source: "openrouter", checked: "2026-09-28" },
   "anthropic/haiku": { name: "Claude Haiku 4.5", short: "Haiku 4.5", id: "anthropic/claude-haiku-4.5", source: "openrouter", checked: "2026-09-22" },
