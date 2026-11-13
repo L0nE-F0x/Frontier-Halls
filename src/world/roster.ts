@@ -92,7 +92,7 @@ export const ROSTER: Record<string, Seat> = {
   "anthropic/sonnet": { name: "Claude Sonnet 5.5", short: "Sonnet 5.5", id: "anthropic/claude-sonnet-5.5", source: "openrouter", checked: "2026-09-28" },
   "anthropic/haiku": { name: "Claude Haiku 4.5", short: "Haiku 4.5", id: "anthropic/claude-haiku-4.5", source: "openrouter", checked: "2026-09-22" },
   "thinking/inkling": { name: "Inkling", short: "Inkling", id: "thinkingmachines/inkling", source: "openrouter", checked: "2026-09-25" },
-  "thinking/small": { name: "Inkling Small", short: "Inkling Small", id: "thinkingmachines/inkling-small", source: "openrouter", checked: "2026-09-25" },
+  "thinking/small": { name: "Inkling 2 Small", short: "Inkling 2", id: "thinkingmachines/inkling-2-small", source: "openrouter", checked: "2026-11-13" },
   "tii/h1": { name: "Falcon-H1", short: "Falcon-H1", source: "hand", checked: "2026-09-25" },
   "tii/arabic": { name: "Falcon Arabic", short: "Falcon Arabic", source: "hand", checked: "2026-09-25" },
   "deepseek/pro": { name: "DeepSeek V4 Pro", short: "V4 Pro", id: "deepseek/deepseek-v4-pro-0813", source: "openrouter", checked: "2026-09-22" },
