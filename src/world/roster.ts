@@ -98,7 +98,7 @@ export const ROSTER: Record<string, Seat> = {
   "deepseek/pro": { name: "DeepSeek V4 Pro", short: "V4 Pro", id: "deepseek/deepseek-v4-pro-0813", source: "openrouter", checked: "2026-09-22" },
   "deepseek/flash": { name: "DeepSeek V4.1 Flash", short: "V4.1 Flash", id: "deepseek/deepseek-v4.1-flash", source: "openrouter", checked: "2026-09-22" },
   "deepseek/distill": { name: "DeepSeek V3.2", short: "V3.2", source: "hand", checked: "2026-09-23" },
-  "qwen/max": { name: "Qwen3.8 Max Prime", short: "Max Prime", id: "qwen/qwen3.8-max-prime", source: "openrouter", checked: "2026-09-23" },
+  "qwen/max": { name: "Qwen4 Max", short: "Max", id: "qwen/qwen4-max", source: "openrouter", checked: "2026-11-16" },
   "qwen/coder": { name: "Qwen3 Coder Next", short: "Coder Next", id: "qwen/qwen3-coder-next", source: "openrouter", checked: "2026-09-22" },
   "qwen/small": { name: "Qwen3.8 27B", short: "3.8 27B", source: "hand", checked: "2026-09-23" },
   "qwen/omni": { name: "Qwen3.8 Omni Flash", short: "Omni Flash", id: "qwen/qwen3.8-omni-flash", source: "openrouter", checked: "2026-09-25" },
