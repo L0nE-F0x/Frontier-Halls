@@ -84,8 +84,8 @@ export const ROSTER: Record<string, Seat> = {
   "meituan/flash": { name: "LongCat Flash", short: "LongCat Flash", source: "hand", checked: "2026-09-25" },
 
   // The south side, west to east.
-  "openai/flagship": { name: "GPT-6 Astra", short: "Astra", id: "openai/gpt-6-astra", source: "openrouter", checked: "2026-09-22" },
-  "openai/balanced": { name: "GPT-6.1 Terra", short: "Terra", id: "openai/gpt-6.1-terra", source: "openrouter", checked: "2026-10-26" },
+  "openai/flagship": { name: "GPT-6.2 Astra", short: "Astra", id: "openai/gpt-6.2-astra", source: "openrouter", checked: "2026-11-17" },
+  "openai/balanced": { name: "GPT-6.2 Sol", short: "Sol", id: "openai/gpt-6.2-sol", source: "openrouter", checked: "2026-11-17" },
   "openai/fast": { name: "GPT-6 Luna", short: "Luna", id: "openai/gpt-6-luna", source: "openrouter", checked: "2026-09-23" },
   "anthropic/fable": { name: "Claude Fable 5.2", short: "Fable 5.2", id: "anthropic/claude-fable-5.2", source: "openrouter", checked: "2026-11-09" },
   "anthropic/opus": { name: "Claude Opus 5.5", short: "Opus 5.5", id: "anthropic/claude-opus-5.5", source: "openrouter", checked: "2026-09-23" },
