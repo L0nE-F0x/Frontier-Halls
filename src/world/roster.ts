@@ -105,7 +105,7 @@ export const ROSTER: Record<string, Seat> = {
   "ant/flash": { name: "Ling 3.1 Flash", short: "Ling Flash", id: "inclusionai/ling-3.1-flash", source: "openrouter", checked: "2026-10-13" },
   "ant/fin": { name: "Ling 3.0 Flash Fin", short: "Ling Flash Fin", id: "inclusionai/ling-3.0-flash-fin", source: "openrouter", checked: "2026-09-25" },
   "upstage/pro": { name: "Solar Pro 4", short: "Solar Pro 4", id: "upstage/solar-pro4", source: "openrouter", checked: "2026-09-25" },
-  "upstage/mini": { name: "Solar Mini 4", short: "Solar Mini 4", id: "upstage/solar-mini4", source: "openrouter", checked: "2026-09-25" },
+  "upstage/mini": { name: "Solar Mini 4.5 (Preview)", short: "Solar Mini 4.5", id: "upstage/solar-mini-4-5", source: "openrouter", checked: "2026-11-25" },
   "xai/flagship": { name: "Grok 4.7", short: "Grok 4.7", id: "x-ai/grok-4.7", source: "openrouter", checked: "2026-09-22" },
   "xai/voice": { name: "Grok Voice", short: "Voice", source: "hand", checked: "2026-09-23" },
   "xai/imagine": { name: "Grok Imagine", short: "Imagine", source: "hand", checked: "2026-09-23" },
