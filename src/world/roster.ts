@@ -102,7 +102,7 @@ export const ROSTER: Record<string, Seat> = {
   "qwen/coder": { name: "Qwen3 Coder Next", short: "Coder Next", id: "qwen/qwen3-coder-next", source: "openrouter", checked: "2026-09-22" },
   "qwen/small": { name: "Qwen3.8 27B", short: "3.8 27B", source: "hand", checked: "2026-09-23" },
   "qwen/omni": { name: "Qwen3.8 Omni Flash", short: "Omni Flash", id: "qwen/qwen3.8-omni-flash", source: "openrouter", checked: "2026-09-25" },
-  "ant/flash": { name: "Ling 3.1 Flash", short: "Ling Flash", id: "inclusionai/ling-3.1-flash", source: "openrouter", checked: "2026-10-13" },
+  "ant/flash": { name: "Ling 3.2 Flash", short: "Ling Flash", id: "inclusionai/ling-3.2-flash", source: "openrouter", checked: "2026-11-27" },
   "ant/fin": { name: "Ling 3.0 Flash Fin", short: "Ling Flash Fin", id: "inclusionai/ling-3.0-flash-fin", source: "openrouter", checked: "2026-09-25" },
   "upstage/pro": { name: "Solar Pro 4", short: "Solar Pro 4", id: "upstage/solar-pro4", source: "openrouter", checked: "2026-09-25" },
   "upstage/mini": { name: "Solar Mini 4.5 (Preview)", short: "Solar Mini 4.5", id: "upstage/solar-mini-4-5", source: "openrouter", checked: "2026-11-25" },
